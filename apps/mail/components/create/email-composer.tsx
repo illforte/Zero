@@ -79,10 +79,20 @@ interface EmailComposerProps {
     scheduleAt?: string;
   }) => Promise<void>;
   onClose?: () => void;
+  onChange?: (updates: {
+    to?: string[];
+    cc?: string[];
+    bcc?: string[];
+    subject?: string;
+    body?: string;
+    attachments?: File[];
+  }) => void;
   className?: string;
   autofocus?: boolean;
   settingsLoading?: boolean;
   editorClassName?: string;
+  draftId?: string | null;
+  inATab?: boolean;
 }
 
 
@@ -108,10 +118,13 @@ export function EmailComposer({
   initialAttachments = [],
   onSendEmail,
   onClose,
+  onChange,
   className,
   autofocus = false,
   settingsLoading = false,
   editorClassName,
+  draftId: propDraftId,
+  inATab = false,
 }: EmailComposerProps) {
   const { data: aliases } = useEmailAliases();
   const { data: settings } = useSettings();
@@ -126,6 +139,7 @@ export function EmailComposer({
   const [isComposeOpen, setIsComposeOpen] = useQueryState('isComposeOpen');
   const { data: emailData } = useThread(threadId ?? null);
   const [draftId, setDraftId] = useQueryState('draftId');
+  const currentDraftId = propDraftId || draftId;
   const [aiGeneratedMessage, setAiGeneratedMessage] = useState<string | null>(null);
   const [aiIsLoading, setAiIsLoading] = useState(false);
   const [isGeneratingSubject, setIsGeneratingSubject] = useState(false);
@@ -520,6 +534,21 @@ export function EmailComposer({
     setShowLeaveConfirmation(false);
   };
 
+  // Add useEffect to notify parent of changes
+  useEffect(() => {
+    if (onChange && hasUnsavedChanges) {
+      const values = getValues();
+      onChange({
+        to: values.to,
+        cc: showCc ? values.cc : undefined,
+        bcc: showBcc ? values.bcc : undefined,
+        subject: values.subject,
+        body: editor?.getHTML() || '',
+        attachments: values.attachments,
+      });
+    }
+  }, [hasUnsavedChanges, getValues, showCc, showBcc, editor, onChange]);
+
   // Component unmount protection
   useEffect(() => {
     return () => {
@@ -614,7 +643,11 @@ export function EmailComposer({
   return (
     <div
       className={cn(
-        'flex max-h-[500px] w-full max-w-[750px] flex-col overflow-hidden rounded-2xl bg-[#FAFAFA] shadow-sm dark:bg-[#202020]',
+        'flex max-h-dvh w-full max-w-[750px] flex-col overflow-hidden bg-[#FAFAFA] shadow-sm dark:bg-[#202020]',
+        {
+          'rounded-2xl': !inATab,
+          'rounded-none': inATab,
+        },
         className,
       )}
     >
@@ -647,7 +680,7 @@ export function EmailComposer({
               >
                 <span>Bcc</span>
               </button>
-              {onClose && (
+              {!inATab && onClose && (
                 <button
                   tabIndex={-1}
                   className="flex h-full items-center gap-2 text-sm font-medium text-[#8C8C8C] hover:text-[#A8A8A8]"
