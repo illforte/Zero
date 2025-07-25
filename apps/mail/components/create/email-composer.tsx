@@ -93,6 +93,18 @@ interface EmailComposerProps {
   isFullscreen?: boolean;
 }
 
+type FormData = {
+  to: string[];
+  subject: string;
+  message: string;
+  attachments?: File[];
+  headers?: any;
+  cc?: string[];
+  bcc?: string[];
+  threadId?: string;
+  fromEmail?: string;
+};
+
 const schema = z.object({
   to: z.array(z.string().email()).min(1),
   subject: z.string().min(1),
@@ -234,7 +246,7 @@ function EmailComposerBase({
     trpc.ai.generateEmailSubject.mutationOptions(),
   );
 
-  const form = useForm<z.infer<typeof schema>>({
+  const form = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       to: initialTo,
@@ -542,9 +554,19 @@ function EmailComposerBase({
   };
 
   // Debounced onChange to prevent excessive re-renders
-  const debouncedOnChange = useDebounce((updates: any) => {
-    onChange?.(updates);
-  }, 500);
+  const debouncedOnChange = useDebounce(
+    (updates: {
+      to?: string[];
+      cc?: string[];
+      bcc?: string[];
+      subject?: string;
+      body?: string;
+      attachments?: File[];
+    }) => {
+      onChange?.(updates);
+    },
+    500,
+  );
 
   // Add useEffect to notify parent of changes
   useEffect(() => {
@@ -669,18 +691,16 @@ function EmailComposerBase({
   return (
     <div
       className={cn(
-        'flex max-h-dvh w-full flex-col overflow-hidden bg-[#FAFAFA] shadow-sm dark:bg-[#202020]',
+        'flex max-h-dvh w-full flex-col overflow-hidden rounded-none bg-[#FAFAFA] shadow-sm dark:bg-[#313131]',
         {
-          'rounded-2xl': !inATab,
-          'rounded-none': inATab,
           'max-w-[750px]': !isFullscreen,
         },
         className,
       )}
     >
-      <div className="no-scrollbar dark:bg-panelDark relative flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="no-scrollbar relative flex min-h-0 flex-1 flex-col overflow-y-auto rounded-b-2xl border dark:bg-[#313131]">
         {/* To, Cc, Bcc */}
-        <div className="shrink-0 overflow-visible border-b border-[#E7E7E7] pb-2 dark:border-[#252525]">
+        <div className="shrink-0 overflow-y-auto border-b border-t border-[#E7E7E7] pb-2 dark:border-[#3B3B3B]">
           <div className="flex justify-between px-3 pt-3">
             <div className="flex w-full items-center gap-2">
               <p className="text-sm font-medium text-[#8C8C8C]">To:</p>
@@ -811,7 +831,7 @@ function EmailComposerBase({
 
         <Toolbar editor={editor} />
 
-        <div className="absolute bottom-1 left-3 z-10">
+        <div className="absolute bottom-3 left-3 z-10">
           <AnimatePresence>
             {aiGeneratedMessage !== null ? (
               <ContentPreview
@@ -863,7 +883,7 @@ function EmailComposerBase({
         </div>
 
         {/* Message Content */}
-        <div className="flex-1 overflow-y-auto bg-[#FFFFFF] outline-white/5 dark:bg-[#202020]">
+        <div className="flex-1 overflow-y-auto rounded-b-2xl bg-[#FFFFFF] dark:bg-[#202020]">
           <div
             onClick={() => {
               editor.commands.focus();
@@ -883,7 +903,7 @@ function EmailComposerBase({
       </div>
 
       {/* Bottom Actions */}
-      <div className="inline-flex w-full shrink-0 items-end justify-between self-stretch rounded-b-2xl bg-[#FFFFFF] px-3 py-3 outline-white/5 dark:bg-[#202020]">
+      <div className="inline-flex w-full shrink-0 items-end justify-between self-stretch rounded-b-2xl bg-[#FFFFFF] px-3 py-3 outline-white/5 dark:bg-[#313131]">
         <div className="flex flex-col items-start justify-start gap-2">
           <div className="flex items-center justify-start gap-2">
             <Button
@@ -1293,7 +1313,7 @@ const ContentPreview = ({
     initial="initial"
     animate="animate"
     exit="exit"
-    className="dark:bg-subtleBlack absolute bottom-full right-0 z-30 z-50 w-[400px] overflow-hidden rounded-xl border bg-white p-1 shadow-md"
+    className="dark:bg-subtleBlack absolute bottom-full right-0 z-50 w-[400px] overflow-hidden rounded-xl border bg-white p-1 shadow-md"
   >
     <div
       className="max-h-60 min-h-[150px] overflow-auto rounded-md p-1 text-sm"
