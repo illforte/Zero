@@ -903,7 +903,7 @@ function EmailComposerBase({
       </div>
 
       {/* Bottom Actions */}
-      <div className="inline-flex w-full shrink-0 items-end justify-between self-stretch rounded-b-2xl bg-[#FFFFFF] px-3 py-3 outline-white/5 dark:bg-[#313131]">
+      <div className="inline-flex w-full shrink-0 items-end justify-between self-stretch rounded-b-2xl bg-[#FFFFFF] px-3.5 py-2.5 outline-white/5 dark:bg-[#313131]">
         <div className="flex flex-col items-start justify-start gap-2">
           <div className="flex items-center justify-start gap-2">
             <Button
@@ -976,8 +976,13 @@ function EmailComposerBase({
                 </div>
               </Button>
             </div>
-            <Button variant={'secondary'} size={'xs'} onClick={() => fileInputRef.current?.click()}>
-              <Plus className="h-3 w-3 fill-[#9A9A9A]" />
+            <Button
+              variant={'ghost'}
+              size={'xs'}
+              onClick={() => fileInputRef.current?.click()}
+              className="hover:bg-[#202020]"
+            >
+              <Plus className="h-3 w-3 text-[#9A9A9A]" />
               <span className="hidden px-0.5 text-sm md:block">Add</span>
             </Button>
             <TemplateButton
@@ -1007,13 +1012,14 @@ function EmailComposerBase({
             {attachments && attachments.length > 0 && (
               <Popover modal={true}>
                 <PopoverTrigger asChild>
-                  <button
-                    className="focus-visible:ring-ring flex items-center gap-1.5 rounded-md border border-[#E7E7E7] bg-white/5 px-2 py-1 text-sm hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 dark:border-[#2B2B2B]"
+                  <Button
+                    size={'xs'}
+                    className="focus-visible:ring-ring flex items-center gap-1.5 rounded-md bg-white/5 px-2 py-1 text-sm text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
                     aria-label={`View ${attachments.length} attached ${pluralize('file', attachments.length)}`}
                   >
                     <Paperclip className="h-3.5 w-3.5 text-[#9A9A9A]" />
                     <span className="font-medium">{attachments.length}</span>
-                  </button>
+                  </Button>
                 </PopoverTrigger>
                 <PopoverContent
                   className="z-100 w-[340px] rounded-lg p-0 shadow-lg dark:bg-[#202020]"
