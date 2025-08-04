@@ -1,5 +1,5 @@
 import type { AppContext, EProviders, Sender } from '../types';
-import { env } from 'cloudflare:workers';
+import { env } from '../env';
 
 export const parseHeaders = (token: string) => {
   const headers = new Headers();
@@ -96,12 +96,6 @@ export const truncateFileName = (name: string, maxLength = 15) => {
     return `${name.slice(0, maxLength - 5)}...${name.slice(extIndex)}`;
   }
   return `${name.slice(0, maxLength)}...`;
-};
-
-export type FilterSuggestion = {
-  filter: string;
-  description: string;
-  prefix: string;
 };
 
 export const extractFilterValue = (filter: string): string => {

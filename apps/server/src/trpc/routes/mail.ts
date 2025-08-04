@@ -5,12 +5,13 @@ import {
 } from '../../lib/driver/types';
 import { updateWritingStyleMatrix } from '../../services/writing-style-service';
 import { activeDriverProcedure, router, privateProcedure } from '../trpc';
+import { getZeroAgent, getZeroClient } from '../../lib/server-utils';
 import { processEmailHtml } from '../../lib/email-processor';
 import { defaultPageSize, FOLDERS } from '../../lib/utils';
 import { serializedFileSchema } from '../../lib/schemas';
 import type { DeleteAllSpamResponse } from '../../types';
-import { getZeroAgent } from '../../lib/server-utils';
-
+import { getContext } from 'hono/context-storage';
+import { type HonoContext } from '../../ctx';
 import { env } from 'cloudflare:workers';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
@@ -20,14 +21,14 @@ const senderSchema = z.object({
   email: z.string(),
 });
 
-const getFolderLabelId = (folder: string) => {
-  // Handle special cases first
-  if (folder === 'bin') return 'TRASH';
-  if (folder === 'archive') return ''; // Archive doesn't have a specific label
+// const getFolderLabelId = (folder: string) => {
+//   // Handle special cases first
+//   if (folder === 'bin') return 'TRASH';
+//   if (folder === 'archive') return ''; // Archive doesn't have a specific label
 
-  // For other folders, convert to uppercase (same as database method)
-  return folder.toUpperCase();
-};
+//   // For other folders, convert to uppercase (same as database method)
+//   return folder.toUpperCase();
+// };
 
 export const mailRouter = router({
   get: activeDriverProcedure
@@ -39,8 +40,9 @@ export const mailRouter = router({
     .output(IGetThreadResponseSchema)
     .query(async ({ input, ctx }) => {
       const { activeConnection } = ctx;
-      const agent = await getZeroAgent(activeConnection.id);
-      return await agent.getThread(input.id);
+      const executionCtx = getContext<HonoContext>().executionCtx;
+      const agent = await getZeroClient(activeConnection.id, executionCtx);
+      return await agent.getThread(input.id, true);
     }),
   count: activeDriverProcedure
     .output(
@@ -90,16 +92,25 @@ export const mailRouter = router({
       let threadsResponse: IGetThreadsResponse;
 
       // Apply folder-to-label mapping when no search query is provided
-      const folderLabelId = getFolderLabelId(folder);
-      const effectiveLabelIds = q ? labelIds : [...labelIds, folderLabelId].filter(Boolean);
+      const effectiveLabelIds = labelIds;
 
-      threadsResponse = await agent.rawListThreads({
-        folder,
-        query: q,
-        maxResults,
-        labelIds: effectiveLabelIds,
-        pageToken: cursor,
-      });
+      if (q) {
+        threadsResponse = await agent.rawListThreads({
+          query: q,
+          maxResults,
+          labelIds: effectiveLabelIds,
+          pageToken: cursor,
+          folder,
+        });
+      } else {
+        threadsResponse = await agent.listThreads({
+          folder,
+          // query: q,
+          maxResults,
+          labelIds: effectiveLabelIds,
+          pageToken: cursor,
+        });
+      }
 
       if (folder === FOLDERS.SNOOZED) {
         const nowTs = Date.now();
@@ -213,7 +224,8 @@ export const mailRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const { activeConnection } = ctx;
-      const agent = await getZeroAgent(activeConnection.id);
+      const executionCtx = getContext<HonoContext>().executionCtx;
+      const agent = await getZeroClient(activeConnection.id, executionCtx);
       const { threadIds } = await agent.normalizeIds(input.ids);
 
       if (!threadIds.length) {
@@ -257,7 +269,8 @@ export const mailRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const { activeConnection } = ctx;
-      const agent = await getZeroAgent(activeConnection.id);
+      const executionCtx = getContext<HonoContext>().executionCtx;
+      const agent = await getZeroClient(activeConnection.id, executionCtx);
       const { threadIds } = await agent.normalizeIds(input.ids);
 
       if (!threadIds.length) {
