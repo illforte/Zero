@@ -1,11 +1,11 @@
 'use client';
 
 import {
-  useSubscriptions,
-  type SubscriptionItem,
-  type SubscriptionCategory,
   categoryColors,
   categoryLabels,
+  useSubscriptions,
+  type SubscriptionCategory,
+  type SubscriptionItem,
 } from '@/hooks/use-subscriptions';
 import {
   Select,
@@ -14,14 +14,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { RefreshCcw, Mail, MailOpen, Search, Trash2 } from 'lucide-react';
 import { EmptyStateIcon } from '@/components/icons/empty-state-svg';
 import { SidebarToggle } from '@/components/ui/sidebar-toggle';
-import { Separator } from '@/components/ui/separator';
+import { Search, XCircle } from '@/components/icons/icons';
+import { BimiAvatar } from '@/components/ui/bimi-avatar';
+import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { RefreshCcw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Avatar } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatDate } from '@/lib/utils';
@@ -30,30 +30,29 @@ import { VList } from 'virtua';
 function SubscriptionItemComponent({
   subscription,
   onUnsubscribe,
-  onResubscribe,
+  // onResubscribe,
   isLoading,
 }: {
   subscription: SubscriptionItem;
   onUnsubscribe: (id: string) => void;
-  onResubscribe: (id: string) => void;
+  // onResubscribe: (id: string) => void;
   isLoading: boolean;
 }) {
-  const getDomainIcon = (domain: string) => {
-    const firstLetter = domain.charAt(0).toUpperCase();
+  const getDomainIcon = () => {
     return (
-      <Avatar className="h-10 w-10 rounded-lg">
-        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-neutral-200 to-neutral-300 text-sm font-semibold text-neutral-700 dark:from-neutral-700 dark:to-neutral-800 dark:text-neutral-300">
-          {firstLetter}
-        </div>
-      </Avatar>
+      <BimiAvatar
+        email={subscription.senderEmail}
+        name={subscription.senderName || subscription.senderEmail}
+        className={cn('h-8 w-8 rounded-full', 'border')}
+      />
     );
   };
 
   return (
-    <Card className="mb-3 transition-shadow hover:shadow-md">
+    <Card className="mb-3 rounded-xl border-none bg-neutral-900 shadow-none">
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
-          {getDomainIcon(subscription.senderDomain)}
+          {getDomainIcon()}
 
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
@@ -81,23 +80,22 @@ function SubscriptionItemComponent({
                     size="sm"
                     onClick={() => onUnsubscribe(subscription.id)}
                     disabled={isLoading}
-                    className="h-8 px-2"
+                    className="h-8 rounded-lg px-2 text-red-400 hover:text-red-500"
                   >
-                    <MailOpen className="mr-1 h-4 w-4" />
+                    <XCircle className="h-4 w-4" />
                     Unsubscribe
                   </Button>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onResubscribe(subscription.id)}
-                    disabled={isLoading}
-                    className="h-8 px-2"
-                  >
-                    <Mail className="mr-1 h-4 w-4" />
-                    Resubscribe
-                  </Button>
-                )}
+                ) : // <Button
+                //   variant="ghost"
+                //   size="sm"
+                //   onClick={() => onResubscribe(subscription.id)}
+                //   disabled={isLoading}
+                //   className="h-8 rounded-lg px-2"
+                // >
+                //   <Mail className="mr-1 h-4 w-4" />
+                //   Resubscribe
+                // </Button>
+                null}
               </div>
             </div>
 
@@ -118,7 +116,6 @@ function SubscriptionItemComponent({
 export default function SubscriptionsPage() {
   const {
     subscriptions,
-    // stats,
     selectedIds,
     isLoading,
     isUnsubscribing,
@@ -131,18 +128,10 @@ export default function SubscriptionsPage() {
     setCategoryFilter,
     setActiveFilter,
     handleUnsubscribe,
-    handleResubscribe,
+    // handleResubscribe,
     handleBulkUnsubscribe,
     refetch,
   } = useSubscriptions();
-
-  const stats = {
-    overall: {
-      total: 0,
-      active: 0,
-      inactive: 0,
-    },
-  };
 
   return (
     <div className="rounded-inherit relative z-[5] flex p-0 md:my-1 md:mr-1">
@@ -157,20 +146,29 @@ export default function SubscriptionsPage() {
                   )}
                 >
                   <div className="w-full">
-                    <div className="mt-1 flex justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <SidebarToggle className="col-span-1 h-fit w-10 px-2" />
-                        <h1 className="text-lg font-semibold">Subscriptions</h1>
+                    <div className="mt-1 flex flex-col justify-between gap-2 px-2 md:flex-row md:px-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <SidebarToggle className="col-span-1 h-fit w-10 px-2" />
+                          <h1 className="text-lg font-semibold">Subscriptions</h1>
+                        </div>
+                        <Button
+                          onClick={() => refetch()}
+                          variant="ghost"
+                          className="block md:hidden md:h-fit md:px-2"
+                        >
+                          <RefreshCcw className="text-muted-foreground h-4 w-4 cursor-pointer" />
+                        </Button>
                       </div>
 
-                      <div className="flex gap-2">
+                      <div className="flex items-center gap-2">
                         <div className="relative flex-1">
-                          <Search className="text-muted-foreground absolute left-3 top-1/2 h-3 w-3 -translate-y-1/2" />
+                          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 fill-[#71717A] dark:fill-[#6F6F6F]" />
                           <Input
-                            placeholder="Search subscriptions..."
+                            placeholder="Search..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="p-1 pl-9"
+                            className="h-9 rounded-lg border-none p-0 pl-9 dark:bg-[#141414]"
                           />
                         </div>
 
@@ -178,7 +176,7 @@ export default function SubscriptionsPage() {
                           value={categoryFilter}
                           onValueChange={(v) => setCategoryFilter(v as any)}
                         >
-                          <SelectTrigger className="w-[150px]">
+                          <SelectTrigger className="w-[100px] rounded-lg md:w-[120px]">
                             <SelectValue placeholder="Category" />
                           </SelectTrigger>
                           <SelectContent>
@@ -195,7 +193,7 @@ export default function SubscriptionsPage() {
                           value={activeFilter}
                           onValueChange={(v) => setActiveFilter(v as any)}
                         >
-                          <SelectTrigger className="w-[130px]">
+                          <SelectTrigger className="w-[92px] rounded-lg md:w-[110px]">
                             <SelectValue placeholder="Status" />
                           </SelectTrigger>
                           <SelectContent>
@@ -219,7 +217,7 @@ export default function SubscriptionsPage() {
                         <Button
                           onClick={() => refetch()}
                           variant="ghost"
-                          className="md:h-fit md:px-2"
+                          className="hidden md:block md:h-fit md:px-2"
                         >
                           <RefreshCcw className="text-muted-foreground h-4 w-4 cursor-pointer" />
                         </Button>
@@ -228,36 +226,6 @@ export default function SubscriptionsPage() {
                   </div>
                 </div>
               </div>
-
-              {stats && (
-                <div className="mb-4 grid grid-cols-3 gap-4 p-4">
-                  <Card>
-                    <CardHeader className="p-3">
-                      <CardTitle className="text-sm font-medium">Total</CardTitle>
-                      <CardDescription className="text-2xl font-bold">
-                        {stats?.overall?.total || 0}
-                      </CardDescription>
-                    </CardHeader>
-                  </Card>
-                  <Card>
-                    <CardHeader className="p-3">
-                      <CardTitle className="text-sm font-medium">Active</CardTitle>
-                      <CardDescription className="text-2xl font-bold text-green-600">
-                        {stats?.overall?.active || 0}
-                      </CardDescription>
-                    </CardHeader>
-                  </Card>
-                  <Card>
-                    <CardHeader className="p-3">
-                      <CardTitle className="text-sm font-medium">Unsubscribed</CardTitle>
-                      <CardDescription className="text-2xl font-bold text-red-600">
-                        {stats?.overall?.inactive || 0}
-                      </CardDescription>
-                    </CardHeader>
-                  </Card>
-                </div>
-              )}
-              <Separator className="mb-4" />
 
               <div className="flex h-[calc(100dvh-62px)] flex-col overflow-auto p-4">
                 {isLoading ? (
@@ -289,7 +257,7 @@ export default function SubscriptionsPage() {
                         key={subscription.id}
                         subscription={subscription}
                         onUnsubscribe={handleUnsubscribe}
-                        onResubscribe={handleResubscribe}
+                        // onResubscribe={handleResubscribe}
                         isLoading={isUnsubscribing || isResubscribing}
                       />
                     ))}

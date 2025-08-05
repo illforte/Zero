@@ -16,7 +16,7 @@ import {
   Clock,
   Bell,
 } from '@/components/icons/icons';
-import { BellIcon, MessageSquareIcon } from 'lucide-react';
+import { MessageSquareIcon } from 'lucide-react';
 import { m } from '@/paraglide/messages';
 
 export interface NavItem {
