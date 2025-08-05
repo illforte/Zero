@@ -28,14 +28,6 @@ export function useCopiedOtpCodes() {
     setCopiedCodes((prev) => new Set([...prev, codeId]));
   }, []);
 
-  const removeCopied = useCallback((codeId: string) => {
-    setCopiedCodes((prev) => {
-      const newSet = new Set(prev);
-      newSet.delete(codeId);
-      return newSet;
-    });
-  }, []);
-
   const isCodeCopied = useCallback(
     (codeId: string) => {
       return copiedCodes.has(codeId);
@@ -49,7 +41,6 @@ export function useCopiedOtpCodes() {
 
   return {
     markAsCopied,
-    removeCopied,
     isCodeCopied,
     clearAll,
     copiedCodes,

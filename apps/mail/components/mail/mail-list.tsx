@@ -1,11 +1,13 @@
 import {
   Archive2,
+  ArrowRight,
   Copy,
   ExclamationCircle,
   GroupPeople,
   PencilCompose,
   Star2,
   Trash,
+  ExternalLink,
 } from '../icons/icons';
 import { memo, useCallback, useEffect, useMemo, useRef, type ComponentProps, useState } from 'react';
 import { useOptimisticThreadState } from '@/components/mail/optimistic-thread-state';
@@ -16,6 +18,7 @@ import type { MailSelectMode, ParsedMessage, ThreadProps } from '@/types';
 import type { ParsedDraft } from '../../../server/src/lib/driver/types';
 import { ThreadContextMenu } from '@/components/context/thread-context';
 import { useOptimisticActions } from '@/hooks/use-optimistic-actions';
+import { detectMagicLinkFromEmail } from '@/lib/magic-link-detection';
 import { useMail, type Config } from '@/components/mail/use-mail';
 import { type ThreadDestination } from '@/lib/thread-actions';
 import { useThread, useThreads } from '@/hooks/use-threads';
@@ -24,6 +27,7 @@ import { EmptyStateIcon } from '../icons/empty-state-svg';
 import { useCopiedOtpCodes } from '@/hooks/use-otp-codes';
 import { highlightText } from '@/lib/email-utils.client';
 import { detectOTPFromEmail } from '@/lib/otp-detection';
+import { useMagicLinks } from '@/hooks/use-magic-links';
 import { cn, FOLDERS, formatDate } from '@/lib/utils';
 import { useTRPC } from '@/providers/query-provider';
 import { useThreadLabels } from '@/hooks/use-labels';
@@ -58,9 +62,10 @@ const Thread = memo(
     const { data: getThreadData, isGroupThread, latestDraft } = useThread(message.id);
     const [id, setThreadId] = useQueryState('threadId');
     const [focusedIndex, setFocusedIndex] = useAtom(focusedIndexAtom);
-    const { markAsCopied, removeCopied, isCodeCopied } = useCopiedOtpCodes();
+    const { markAsCopied, isCodeCopied } = useCopiedOtpCodes();
+    const { markAsUsed, isLinkUsed } = useMagicLinks();
 
-    const { latestMessage, idToUse, cleanName, otpCode } = useMemo(() => {
+    const { latestMessage, idToUse, cleanName, otpCode, magicLink } = useMemo(() => {
       const latestMessage = getThreadData?.latest;
       const idToUse = latestMessage?.threadId ?? latestMessage?.id;
       const cleanName = latestMessage?.sender?.name
@@ -68,8 +73,9 @@ const Thread = memo(
         : '';
 
       const otpCode = latestMessage ? detectOTPFromEmail(latestMessage) : null;
+      const magicLink = latestMessage ? detectMagicLinkFromEmail(latestMessage) : null;
 
-      return { latestMessage, idToUse, cleanName, otpCode };
+      return { latestMessage, idToUse, cleanName, otpCode, magicLink };
     }, [getThreadData?.latest]);
 
     const optimisticState = useOptimisticThreadState(idToUse ?? '');
@@ -237,7 +243,7 @@ const Thread = memo(
               'relative',
               'group',
 
-              otpCode && 'pb-0 outline-2 outline-[#313131]',
+              (otpCode || magicLink) && 'pb-0 outline-2 outline-[#313131]',
             )}
           >
             <div
@@ -346,7 +352,8 @@ const Thread = memo(
               className={cn(
                 'relative flex w-full items-center justify-between gap-4 px-4 py-2',
                 displayUnread ? '' : 'opacity-60',
-                otpCode && 'group-hover:bg-offsetLight dark:group-hover:bg-primary/5 rounded-t-lg',
+                (otpCode || magicLink) &&
+                  'group-hover:bg-offsetLight dark:group-hover:bg-primary/5 rounded-t-lg',
               )}
             >
               <div>
@@ -524,7 +531,12 @@ const Thread = memo(
               </div>
             </div>
             {otpCode && (
-              <div className="flex w-full items-center justify-between gap-2 rounded-b-lg bg-[#313131] p-2">
+              <div
+                className={cn(
+                  'flex w-full items-center justify-between gap-2 bg-[#313131] p-2',
+                  !magicLink && 'rounded-b-lg',
+                )}
+              >
                 <span className="text-muted-foreground text-xs">
                   {/* {otpCode.service} verification code */}
                   Your 2FA Code
@@ -543,12 +555,8 @@ const Thread = memo(
                     e.preventDefault();
 
                     if (isCodeCopied(otpCode.id)) {
-                      // Delete functionality
-                      // removeCopied(otpCode.id);
                       moveThreadTo('bin');
-                      toast.success('Removed from copied codes');
                     } else {
-                      // Copy functionality
                       navigator.clipboard.writeText(otpCode.code);
                       markAsCopied(otpCode.id);
                       toast.success('Copied to clipboard');
@@ -564,6 +572,45 @@ const Thread = memo(
                     <>
                       <Copy className="h-2 w-2" />
                       <span className="font-mono text-xs">{otpCode.code}</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+            {magicLink && (
+              <div className="flex w-full items-center justify-between gap-2 rounded-b-lg bg-[#313131] p-2">
+                <span className="text-muted-foreground text-xs">Magic Sign-in Link</span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className={cn(
+                    'z-10 flex h-6 flex-row items-center gap-1 !px-2 !py-1 text-xs',
+                    isLinkUsed(magicLink.id)
+                      ? 'bg-red-500/10 hover:bg-red-500/20 dark:bg-red-500/10 dark:hover:bg-red-500/20'
+                      : 'bg-black/10 dark:bg-white/10',
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+
+                    if (isLinkUsed(magicLink.id)) {
+                      moveThreadTo('bin');
+                    } else {
+                      window.open(magicLink.url, '_blank');
+                      markAsUsed(magicLink.id);
+                      toast.success('Opening magic link in new tab');
+                    }
+                  }}
+                >
+                  {isLinkUsed(magicLink.id) ? (
+                    <>
+                      <Trash className="h-2 w-2 fill-red-500" />
+                      <span className="text-xs">Delete</span>
+                    </>
+                  ) : (
+                    <>
+                      <ExternalLink className="h-2 w-2" />
+                      <span className="text-xs">Open Link</span>
                     </>
                   )}
                 </Button>

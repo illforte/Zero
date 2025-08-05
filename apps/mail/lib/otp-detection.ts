@@ -37,15 +37,18 @@ const OTP_PATTERNS = [
   /(?<!#)(?<!:)(?<!-)(?<![A-Z0-9])(\d{7})(?![A-Z0-9])(?!:)(?!-)/, // Exactly 7 digits
   /(?<!#)(?<!:)(?<!-)(?<![A-Z0-9])(\d{8})(?![A-Z0-9])(?!:)(?!-)(?!\s*(?:UTC|GMT|EST|PST|PDT|CDT|MDT))/, // Exactly 8 digits
 
-  // Alphanumeric codes (less common) - exclude hex colors
-  /(?<!#)(?<![A-Z0-9])([A-Z0-9]{6})(?![A-Z0-9])(?![A-F0-9]{0,2})/,
-  /(?<!#)(?<![A-Z0-9])([A-Z0-9]{8})(?![A-Z0-9])/,
-
-  // Fallback patterns - more restrictive
-  /(?<!#)(?<![\w-])([A-Z0-9]{4,8})(?![\w-])(?!\s*[);,}])/i, // Avoid CSS, function calls, etc.
+  // Alphanumeric codes (less common) - match mixed letters and numbers
+  /(?<!#)(?<![A-Z0-9])([A-Z0-9]{6})(?![A-Z0-9])/, // 6 chars alphanumeric
+  /(?<!#)(?<![A-Z0-9])([A-Z0-9]{8})(?![A-Z0-9])/, // 8 chars alphanumeric
 ];
 
 const isValidOTPCode = (code: string): boolean => {
+  // OTP codes should contain at least one digit
+  if (!/\d/.test(code)) return false;
+
+  // Exclude purely alphabetic strings (common words)
+  if (/^[A-Za-z]+$/.test(code)) return false;
+
   // Exclude years (1900-2099)
   if (/^(19|20)\d{2}$/.test(code)) return false;
 
@@ -64,6 +67,17 @@ const isValidOTPCode = (code: string): boolean => {
   if (isSequential && code.length >= 4) return false;
 
   return true;
+};
+
+const isCodeWithinURL = (text: string, index: number, length: number): boolean => {
+  const urlRegex = /https?:\/\/[^\s"'<>]+/gi;
+  let m;
+  while ((m = urlRegex.exec(text)) !== null) {
+    const start = m.index;
+    const end = start + m[0].length;
+    if (index >= start && index + length <= end) return true;
+  }
+  return false;
 };
 
 const SERVICE_PATTERNS: Record<string, RegExp[]> = {
@@ -108,15 +122,24 @@ export const detectOTPFromEmail = (message: ParsedMessage): OTPCode | null => {
   let code: string | null = null;
   const bodyText = message.decodedBody || message.body || '';
 
+  console.log('bodyText', bodyText);
+
   for (const pattern of OTP_PATTERNS) {
-    const match = bodyText.match(pattern);
-    if (match && match[1]) {
-      const potentialCode = match[1].replace(/[-\s]/g, '');
+    const regex = new RegExp(
+      pattern.source,
+      pattern.flags.includes('g') ? pattern.flags : pattern.flags + 'g',
+    );
+    let m;
+    while ((m = regex.exec(bodyText)) !== null) {
+      if (!m[1]) continue;
+      if (isCodeWithinURL(bodyText, m.index ?? 0, m[1].length)) continue;
+      const potentialCode = m[1].replace(/[-\s]/g, '');
       if (isValidOTPCode(potentialCode)) {
         code = potentialCode;
         break;
       }
     }
+    if (code) break;
   }
 
   if (!code) return null;
