@@ -12,20 +12,60 @@ export interface OTPCode {
   isExpired: boolean;
 }
 
-// Common OTP patterns
 const OTP_PATTERNS = [
-  // 6-8 digit codes
-  /\b(\d{6,8})\b/,
-  // Codes with dashes or spaces
-  /\b(\d{3}[-\s]?\d{3})\b/,
-  // Alphanumeric codes
-  /\b([A-Z0-9]{6,8})\b/,
-  // With prefix text
-  /(?:code|verification|otp|pin)[\s:]+([A-Z0-9]{4,8})/i,
-  /(?:is|:)\s*([A-Z0-9]{4,8})\b/i,
+  // Codes with explicit context (most specific)
+  // /Your (?:verification|security|authentication|confirmation|access|login) code is:?\s*([A-Z0-9]{4,8})/i,
+  // /(?:verification|security|authentication|confirmation|access|login) code:?\s*([A-Z0-9]{4,8})/i,
+  // /(?:code|OTP|PIN)(?:\s+is)?:?\s*([A-Z0-9]{4,8})/i,
+  // /Use (?:code|this):?\s*([A-Z0-9]{4,8})/i,
+  // /Enter:?\s*([A-Z0-9]{4,8})/i,
+
+  // Service-specific patterns
+  /G-(\d{6})/, // Google format
+  /(\d{6})\s+is your/i,
+  /is\s+(\d{4,8})(?!\s*(?:px|em|rem|%|pt|vh|vw))/i, // Exclude CSS units
+
+  // Codes with formatting
+  /\b(\d{3}[-\s]\d{3})\b/, // 123-456 or 123 456
+  /\b(\d{4}[-\s]\d{4})\b/, // 1234-5678
+  /\b(\d{2}[-\s]\d{2}[-\s]\d{2})\b/, // 12-34-56
+
+  // Standalone numeric codes (4-8 digits) - exclude hex colors, dates, times
+  /(?<!#)(?<!:)(?<!-)(?<![A-Z0-9])(\d{6})(?![A-Z0-9])(?!:)(?!-)(?!\s*(?:UTC|GMT|EST|PST|PDT|CDT|MDT))/, // Exactly 6 digits
+  /(?<!#)(?<!:)(?<!-)(?<![A-Z0-9])(?!19\d{2})(?!20\d{2})(\d{4})(?![A-Z0-9])(?!:)(?!-)/, // Exactly 4 digits, not years
+  /(?<!#)(?<!:)(?<!-)(?<![A-Z0-9])(\d{5})(?![A-Z0-9])(?!:)(?!-)/, // Exactly 5 digits
+  /(?<!#)(?<!:)(?<!-)(?<![A-Z0-9])(\d{7})(?![A-Z0-9])(?!:)(?!-)/, // Exactly 7 digits
+  /(?<!#)(?<!:)(?<!-)(?<![A-Z0-9])(\d{8})(?![A-Z0-9])(?!:)(?!-)(?!\s*(?:UTC|GMT|EST|PST|PDT|CDT|MDT))/, // Exactly 8 digits
+
+  // Alphanumeric codes (less common) - exclude hex colors
+  /(?<!#)(?<![A-Z0-9])([A-Z0-9]{6})(?![A-Z0-9])(?![A-F0-9]{0,2})/,
+  /(?<!#)(?<![A-Z0-9])([A-Z0-9]{8})(?![A-Z0-9])/,
+
+  // Fallback patterns - more restrictive
+  /(?<!#)(?<![\w-])([A-Z0-9]{4,8})(?![\w-])(?!\s*[);,}])/i, // Avoid CSS, function calls, etc.
 ];
 
-// Service detection patterns
+const isValidOTPCode = (code: string): boolean => {
+  // Exclude years (1900-2099)
+  if (/^(19|20)\d{2}$/.test(code)) return false;
+
+  // Exclude common timestamp patterns
+  if (/^\d{2}:\d{2}$/.test(code)) return false; // HH:MM
+  if (/^\d{6}$/.test(code) && code.match(/^([01]\d|2[0-3])([0-5]\d){2}$/)) return false; // HHMMSS
+
+  // Exclude codes that are all the same digit (e.g., 000000, 111111)
+  if (/^(\d)\1+$/.test(code)) return false;
+
+  // Exclude sequential numbers (e.g., 123456, 987654)
+  const digits = code.split('').map(Number);
+  const isSequential = digits.every(
+    (digit, i) => i === 0 || digit === digits[i - 1] + 1 || digit === digits[i - 1] - 1,
+  );
+  if (isSequential && code.length >= 4) return false;
+
+  return true;
+};
+
 const SERVICE_PATTERNS: Record<string, RegExp[]> = {
   Google: [/google/i, /gmail/i, /youtube/i],
   Microsoft: [/microsoft/i, /outlook/i, /office/i, /azure/i],
@@ -47,13 +87,11 @@ const SERVICE_PATTERNS: Record<string, RegExp[]> = {
 export const detectOTPFromEmail = (message: ParsedMessage): OTPCode | null => {
   if (!message.subject && !message.body) return null;
 
-  // Check if this is likely an OTP email
   const otpKeywords = [
     'verification code',
     'verify',
     'otp',
     'one-time',
-    'authentication',
     '2fa',
     'two-factor',
     'security code',
@@ -62,26 +100,27 @@ export const detectOTPFromEmail = (message: ParsedMessage): OTPCode | null => {
     'login code',
   ];
 
-  const content = `${message.subject} ${message.body}`.toLowerCase();
+  const content = `${message.subject} ${message.decodedBody}`.toLowerCase();
   const hasOTPKeyword = otpKeywords.some((keyword) => content.includes(keyword));
 
   if (!hasOTPKeyword) return null;
 
-  // Extract the code
   let code: string | null = null;
-  const bodyText = message.body || '';
+  const bodyText = message.decodedBody || message.body || '';
 
   for (const pattern of OTP_PATTERNS) {
     const match = bodyText.match(pattern);
     if (match && match[1]) {
-      code = match[1].replace(/[-\s]/g, '');
-      break;
+      const potentialCode = match[1].replace(/[-\s]/g, '');
+      if (isValidOTPCode(potentialCode)) {
+        code = potentialCode;
+        break;
+      }
     }
   }
 
   if (!code) return null;
 
-  // Detect service
   let service = 'Unknown Service';
   const fromEmail = message.sender?.email || '';
   const fromName = message.sender?.name || '';
@@ -98,7 +137,6 @@ export const detectOTPFromEmail = (message: ParsedMessage): OTPCode | null => {
     }
   }
 
-  // If no known service, try to extract from sender
   if (service === 'Unknown Service' && message.sender?.name) {
     service = message.sender.name.split(' ')[0];
   }

@@ -1,10 +1,11 @@
 import {
   Archive2,
+  Copy,
   ExclamationCircle,
   GroupPeople,
+  PencilCompose,
   Star2,
   Trash,
-  PencilCompose,
 } from '../icons/icons';
 import { memo, useCallback, useEffect, useMemo, useRef, type ComponentProps, useState } from 'react';
 import { useOptimisticThreadState } from '@/components/mail/optimistic-thread-state';
@@ -20,6 +21,7 @@ import { type ThreadDestination } from '@/lib/thread-actions';
 import { useThread, useThreads } from '@/hooks/use-threads';
 import { useSearchValue } from '@/hooks/use-search-value';
 import { EmptyStateIcon } from '../icons/empty-state-svg';
+import { useCopiedOtpCodes } from '@/hooks/use-otp-codes';
 import { highlightText } from '@/lib/email-utils.client';
 import { detectOTPFromEmail } from '@/lib/otp-detection';
 import { cn, FOLDERS, formatDate } from '@/lib/utils';
@@ -40,6 +42,7 @@ import { Button } from '../ui/button';
 import { Avatar } from '../ui/avatar';
 import { useQueryState } from 'nuqs';
 import { useAtom } from 'jotai';
+import { toast } from 'sonner';
 
 const Thread = memo(
   function Thread({
@@ -55,6 +58,7 @@ const Thread = memo(
     const { data: getThreadData, isGroupThread, latestDraft } = useThread(message.id);
     const [id, setThreadId] = useQueryState('threadId');
     const [focusedIndex, setFocusedIndex] = useAtom(focusedIndexAtom);
+    const { markAsCopied, removeCopied, isCodeCopied } = useCopiedOtpCodes();
 
     const { latestMessage, idToUse, cleanName, otpCode } = useMemo(() => {
       const latestMessage = getThreadData?.latest;
@@ -232,6 +236,8 @@ const Thread = memo(
               isKeyboardFocused && 'ring-primary/50',
               'relative',
               'group',
+
+              otpCode && 'pb-0 outline-2 outline-[#313131]',
             )}
           >
             <div
@@ -337,7 +343,11 @@ const Thread = memo(
             </div>
 
             <div
-              className={`relative flex w-full items-center justify-between gap-4 px-4 ${displayUnread ? '' : 'opacity-60'}`}
+              className={cn(
+                'relative flex w-full items-center justify-between gap-4 px-4 py-2',
+                displayUnread ? '' : 'opacity-60',
+                otpCode && 'group-hover:bg-offsetLight dark:group-hover:bg-primary/5 rounded-t-lg',
+              )}
             >
               <div>
                 {isMailBulkSelected ? (
@@ -486,19 +496,6 @@ const Thread = memo(
                         >
                           {highlightText(latestMessage.subject, searchValue.highlight)}
                         </p>
-                        {otpCode && (
-                          <div className="mt-1 flex items-center gap-2">
-                            <Badge
-                              variant="secondary"
-                              className="bg-black/10 font-mono text-xs dark:bg-white/10"
-                            >
-                              {otpCode.code}
-                            </Badge>
-                            <span className="text-muted-foreground text-xs">
-                              {otpCode.service} verification code
-                            </span>
-                          </div>
-                        )}
                       </div>
                     )}
                     {/* <div className="hidden md:flex">
@@ -526,6 +523,52 @@ const Thread = memo(
                 </div>
               </div>
             </div>
+            {otpCode && (
+              <div className="flex w-full items-center justify-between gap-2 rounded-b-lg bg-[#313131] p-2">
+                <span className="text-muted-foreground text-xs">
+                  {/* {otpCode.service} verification code */}
+                  Your 2FA Code
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className={cn(
+                    'z-10 flex h-6 flex-row !px-2 !py-1 text-xs',
+                    isCodeCopied(otpCode.id)
+                      ? 'bg-red-500/10 hover:bg-red-500/20 dark:bg-red-500/10 dark:hover:bg-red-500/20'
+                      : 'bg-black/10 dark:bg-white/10',
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+
+                    if (isCodeCopied(otpCode.id)) {
+                      // Delete functionality
+                      // removeCopied(otpCode.id);
+                      moveThreadTo('bin');
+                      toast.success('Removed from copied codes');
+                    } else {
+                      // Copy functionality
+                      navigator.clipboard.writeText(otpCode.code);
+                      markAsCopied(otpCode.id);
+                      toast.success('Copied to clipboard');
+                    }
+                  }}
+                >
+                  {isCodeCopied(otpCode.id) ? (
+                    <>
+                      <Trash className="h-2 w-2 fill-red-500" />
+                      <span className="text-xs">Delete</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-2 w-2" />
+                      <span className="font-mono text-xs">{otpCode.code}</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       );
