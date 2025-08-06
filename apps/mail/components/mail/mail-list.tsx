@@ -223,7 +223,7 @@ const Thread = memo(
 
       return (
         <div
-          className={cn('select-none border-b md:my-1 md:border-none')}
+          className={cn('mx-1 select-none border-b md:my-1 md:border-none')}
           onClick={onClick ? onClick(latestMessage) : undefined}
           //   onMouseEnter={() => {
           //     window.dispatchEvent(new CustomEvent('emailHover', { detail: { id: idToUse } }));
@@ -243,7 +243,8 @@ const Thread = memo(
               'relative',
               'group',
 
-              (otpCode || magicLink) && 'outline-border pb-0 outline-2 dark:outline-[#313131]',
+              (otpCode || magicLink) &&
+                'outline-border bg-border hover:!bg-border pb-0 outline-2 dark:bg-[#313131] dark:outline-[#313131]',
             )}
           >
             <div
@@ -350,10 +351,11 @@ const Thread = memo(
 
             <div
               className={cn(
-                'relative flex w-full items-center justify-between gap-4 px-4 py-2',
+                'relative flex w-full items-center justify-between gap-4 rounded-lg px-4 py-2',
                 displayUnread ? '' : 'opacity-60',
+                (otpCode || magicLink) && 'bg-[#1a1a1a]',
                 (otpCode || magicLink) &&
-                  'group-hover:bg-offsetLight dark:group-hover:bg-primary/5 rounded-t-lg',
+                  'group-hover:bg-offsetLight dark:group-hover:bg-primary/5',
               )}
             >
               <div>
@@ -541,79 +543,81 @@ const Thread = memo(
                   {/* {otpCode.service} verification code */}
                   Your 2FA Code
                 </span>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className={cn(
-                    'z-10 flex h-6 flex-row !px-2 !py-1 text-xs',
-                    isCodeCopied(otpCode.id)
-                      ? 'bg-red-500/10 hover:bg-red-500/20 dark:bg-red-500/10 dark:hover:bg-red-500/20'
-                      : 'bg-black/10 dark:bg-white/10',
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-
-                    if (isCodeCopied(otpCode.id)) {
-                      moveThreadTo('bin');
-                    } else {
+                <div className="flex gap-1">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className={cn(
+                      'z-10 flex h-6 flex-row gap-1 !px-2 !py-1 text-xs',
+                      isCodeCopied(otpCode.id)
+                        ? 'bg-green-500/10 hover:bg-green-500/20 dark:bg-green-500/10 dark:hover:bg-green-500/20'
+                        : 'bg-black/10 hover:bg-black/20 dark:bg-white/10 dark:hover:bg-white/20',
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
                       navigator.clipboard.writeText(otpCode.code);
                       markAsCopied(otpCode.id);
                       toast.success('Copied to clipboard');
-                    }
-                  }}
-                >
-                  {isCodeCopied(otpCode.id) ? (
-                    <>
-                      <Trash className="h-2 w-2 fill-red-500" />
-                      <span className="text-xs">Delete</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-2 w-2" />
-                      <span className="font-mono text-xs">{otpCode.code}</span>
-                    </>
-                  )}
-                </Button>
+                    }}
+                  >
+                    <Copy className="h-2 w-2" />
+                    <span className="font-mono text-xs">{otpCode.code}</span>
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="z-10 flex h-6 flex-row gap-1 bg-red-500/10 !px-2 !py-1 text-xs hover:bg-red-500/20 dark:bg-red-500/10 dark:hover:bg-red-500/20"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      moveThreadTo('bin');
+                    }}
+                  >
+                    <Trash className="h-2 w-2 fill-red-500" />
+                    <span className="text-xs">Delete</span>
+                  </Button>
+                </div>
               </div>
             )}
             {magicLink && (
               <div className="bg-border flex w-full items-center justify-between gap-2 rounded-b-lg p-2 dark:bg-[#313131]">
                 <span className="text-muted-foreground text-xs">Magic Sign-in Link</span>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className={cn(
-                    'z-10 flex h-6 flex-row items-center gap-1 !px-2 !py-1 text-xs',
-                    isLinkUsed(magicLink.id)
-                      ? 'bg-red-500/10 hover:bg-red-500/20 dark:bg-red-500/10 dark:hover:bg-red-500/20'
-                      : 'bg-black/10 dark:bg-white/10',
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-
-                    if (isLinkUsed(magicLink.id)) {
-                      moveThreadTo('bin');
-                    } else {
+                <div className="flex gap-1">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className={cn(
+                      'z-10 flex h-6 flex-row items-center gap-1 !px-2 !py-1 text-xs',
+                      isLinkUsed(magicLink.id)
+                        ? 'bg-green-500/10 hover:bg-green-500/20 dark:bg-green-500/10 dark:hover:bg-green-500/20'
+                        : 'bg-black/10 hover:bg-black/20 dark:bg-white/10 dark:hover:bg-white/20',
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
                       window.open(magicLink.url, '_blank');
                       markAsUsed(magicLink.id);
                       toast.success('Opening magic link in new tab');
-                    }
-                  }}
-                >
-                  {isLinkUsed(magicLink.id) ? (
-                    <>
-                      <Trash className="h-2 w-2 fill-red-500" />
-                      <span className="text-xs">Delete</span>
-                    </>
-                  ) : (
-                    <>
-                      <ExternalLink className="h-2 w-2" />
-                      <span className="text-xs">Open Link</span>
-                    </>
-                  )}
-                </Button>
+                    }}
+                  >
+                    <ExternalLink className="h-2 w-2" />
+                    <span className="text-xs">Open Link</span>
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="z-10 flex h-6 flex-row items-center gap-1 bg-red-500/10 !px-2 !py-1 text-xs hover:bg-red-500/20 dark:bg-red-500/10 dark:hover:bg-red-500/20"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      moveThreadTo('bin');
+                    }}
+                  >
+                    <Trash className="h-2 w-2 fill-red-500" />
+                    <span className="text-xs">Delete</span>
+                  </Button>
+                </div>
               </div>
             )}
           </div>
