@@ -1,6 +1,5 @@
 import {
   Archive2,
-  ArrowRight,
   Copy,
   ExclamationCircle,
   GroupPeople,
@@ -63,7 +62,7 @@ const Thread = memo(
     const [id, setThreadId] = useQueryState('threadId');
     const [focusedIndex, setFocusedIndex] = useAtom(focusedIndexAtom);
     const { markAsCopied, isCodeCopied } = useCopiedOtpCodes();
-    const { markAsUsed, isLinkUsed } = useMagicLinks();
+    const { isLinkUsed } = useMagicLinks();
 
     const { latestMessage, idToUse, cleanName, otpCode, magicLink } = useMemo(() => {
       const latestMessage = getThreadData?.latest;
@@ -220,6 +219,21 @@ const Thread = memo(
 
     const content = useMemo(() => {
       if (!latestMessage || !getThreadData) return null;
+
+      const copyCode = (e: React.MouseEvent, code: { id: string; code: string }) => {
+        e.stopPropagation();
+        e.preventDefault();
+        navigator.clipboard.writeText(code.code);
+        markAsCopied(code.id);
+        toast.success('Copied to clipboard');
+      };
+
+      const openMagicLink = (e: React.MouseEvent, url: string) => {
+        e.stopPropagation();
+        e.preventDefault();
+        window.open(url, '_blank');
+        toast.success('Opening magic link in new tab');
+      };
 
       return (
         <div
@@ -553,29 +567,10 @@ const Thread = memo(
                         ? 'bg-green-500/10 hover:bg-green-500/20 dark:bg-green-500/10 dark:hover:bg-green-500/20'
                         : 'bg-black/10 hover:bg-black/20 dark:bg-white/10 dark:hover:bg-white/20',
                     )}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      navigator.clipboard.writeText(otpCode.code);
-                      markAsCopied(otpCode.id);
-                      toast.success('Copied to clipboard');
-                    }}
+                    onClick={(e) => copyCode(e, otpCode.code)}
                   >
                     <Copy className="h-2 w-2" />
                     <span className="font-mono text-xs">{otpCode.code}</span>
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="z-10 flex h-6 flex-row gap-1 bg-red-500/10 !px-2 !py-1 text-xs hover:bg-red-500/20 dark:bg-red-500/10 dark:hover:bg-red-500/20"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      moveThreadTo('bin');
-                    }}
-                  >
-                    <Trash className="h-2 w-2 fill-red-500" />
-                    <span className="text-xs">Delete</span>
                   </Button>
                 </div>
               </div>
@@ -593,29 +588,10 @@ const Thread = memo(
                         ? 'bg-green-500/10 hover:bg-green-500/20 dark:bg-green-500/10 dark:hover:bg-green-500/20'
                         : 'bg-black/10 hover:bg-black/20 dark:bg-white/10 dark:hover:bg-white/20',
                     )}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      window.open(magicLink.url, '_blank');
-                      markAsUsed(magicLink.id);
-                      toast.success('Opening magic link in new tab');
-                    }}
+                    onClick={(e) => openMagicLink(e, magicLink.url)}
                   >
                     <ExternalLink className="h-2 w-2" />
                     <span className="text-xs">Open Link</span>
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="z-10 flex h-6 flex-row items-center gap-1 bg-red-500/10 !px-2 !py-1 text-xs hover:bg-red-500/20 dark:bg-red-500/10 dark:hover:bg-red-500/20"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      moveThreadTo('bin');
-                    }}
-                  >
-                    <Trash className="h-2 w-2 fill-red-500" />
-                    <span className="text-xs">Delete</span>
                   </Button>
                 </div>
               </div>
