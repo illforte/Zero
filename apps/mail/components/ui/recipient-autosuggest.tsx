@@ -168,7 +168,6 @@ export function RecipientAutosuggest({
         }
         break;
       case 'Tab':
-      case ' ':
         if (inputValue.trim() && isValidEmail(inputValue.trim())) {
           e.preventDefault();
           addRecipient(inputValue.trim());

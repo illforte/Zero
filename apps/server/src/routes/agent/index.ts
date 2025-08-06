@@ -284,6 +284,10 @@ export class ZeroDriver extends AIChatAgent<typeof env> {
   private driver: MailManager | null = null;
   private agent: DurableObjectStub<ZeroAgent> | null = null;
   private recipientCache: { contacts: Array<{ email: string; name?: string | null; freq: number; last: number }>; hash: string } | null = null;
+
+  private invalidateRecipientCache() {
+    this.recipientCache = null;
+  }
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     if (shouldDropTables) this.dropTables();
@@ -566,14 +570,18 @@ export class ZeroDriver extends AIChatAgent<typeof env> {
     if (!this.driver) {
       throw new Error('No driver available');
     }
-    return await this.driver.sendDraft(id, data);
+    const result = await this.driver.sendDraft(id, data);
+    this.invalidateRecipientCache();
+    return result;
   }
 
   async create(data: IOutgoingMessage) {
     if (!this.driver) {
       throw new Error('No driver available');
     }
-    return await this.driver.create(data);
+    const result = await this.driver.create(data);
+    this.invalidateRecipientCache();
+    return result;
   }
 
   async delete(id: string) {
@@ -821,6 +829,7 @@ export class ZeroDriver extends AIChatAgent<typeof env> {
     void this.sql`
       DELETE FROM threads WHERE thread_id = ${id};
     `;
+    this.invalidateRecipientCache();
     this.agent?.broadcastChatMessage({
       type: OutgoingMessageType.Mail_List,
       folder: 'bin',
@@ -961,7 +970,10 @@ export class ZeroDriver extends AIChatAgent<typeof env> {
         `),
         ).pipe(
           Effect.tap(() =>
-            Effect.sync(() => console.log(`[syncThread] Updated database for ${threadId}`)),
+            Effect.sync(() => {
+              console.log(`[syncThread] Updated database for ${threadId}`);
+              self.invalidateRecipientCache();
+            }),
           ),
           Effect.catchAll((error) => {
             console.error(`[syncThread] Failed to update database for ${threadId}:`, error);
@@ -1623,6 +1635,8 @@ export class ZeroDriver extends AIChatAgent<typeof env> {
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ${threadId}
       `;
+      
+      this.invalidateRecipientCache();
 
       await this.agent?.broadcastChatMessage({
         type: OutgoingMessageType.Mail_Get,
@@ -1766,27 +1780,46 @@ export class ZeroDriver extends AIChatAgent<typeof env> {
 
       for (const row of rows) {
         if (!row?.latest_sender) continue;
+        
+        let sender: { email?: string; name?: string } | null = null;
+        
         try {
-          const sender = JSON.parse(String(row.latest_sender));
-          if (!sender?.email) continue;
-
-          const key = sender.email.toLowerCase();
-          const lastTs = row.latest_received_on ? new Date(String(row.latest_received_on)).getTime() : 0;
-
-          if (!map.has(key)) {
-            map.set(key, {
-              email: sender.email,
-              name: sender.name,
-              freq: 1,
-              last: lastTs,
-            });
-          } else {
-            const entry = map.get(key)!;
-            entry.freq += 1;
-            if (lastTs > entry.last) entry.last = lastTs;
-          }
+          sender = JSON.parse(String(row.latest_sender));
         } catch (error) {
-          console.error('[SuggestRecipients] Failed to parse latest_sender JSON:', error, 'Raw data:', row.latest_sender);
+          const rawData = String(row.latest_sender);
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          
+          if (emailRegex.test(rawData.trim())) {
+            sender = { email: rawData.trim(), name: undefined };
+            console.warn('[SuggestRecipients] Used fallback parsing for email:', rawData);
+          } else {
+            const emailMatch = rawData.match(/([^\s@]+@[^\s@]+\.[^\s@]+)/);
+            if (emailMatch) {
+              sender = { email: emailMatch[1], name: undefined };
+              console.warn('[SuggestRecipients] Extracted email from malformed data:', emailMatch[1]);
+            } else {
+              console.error('[SuggestRecipients] Failed to parse latest_sender, no fallback possible:', error, 'Raw data:', rawData);
+              continue;
+            }
+          }
+        }
+        
+        if (!sender?.email) continue;
+
+        const key = sender.email.toLowerCase();
+        const lastTs = row.latest_received_on ? new Date(String(row.latest_received_on)).getTime() : 0;
+
+        if (!map.has(key)) {
+          map.set(key, {
+            email: sender.email,
+            name: sender.name || null,
+            freq: 1,
+            last: lastTs,
+          });
+        } else {
+          const entry = map.get(key)!;
+          entry.freq += 1;
+          if (lastTs > entry.last) entry.last = lastTs;
         }
       }
 
