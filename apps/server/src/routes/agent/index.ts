@@ -288,6 +288,47 @@ export class ZeroDriver extends AIChatAgent<typeof env> {
   private invalidateRecipientCache() {
     this.recipientCache = null;
   }
+
+  private parseMalformedSender(rawData: string): { email: string; name?: string } | null {
+    const emailRegex = /([^\s@]+@[^\s@]+\.[^\s@]+)/;
+    
+    if (emailRegex.test(rawData.trim())) {
+      const email = rawData.trim();
+      console.warn('[SuggestRecipients] Used fallback parsing for plain email:', email);
+      return { email, name: undefined };
+    }
+
+    const emailMatch = rawData.match(emailRegex);
+    if (!emailMatch) return null;
+    
+    const email = emailMatch[1];
+    let name: string | undefined = undefined;
+
+    const namePatterns = [
+      /"name"\s*:\s*"([^"]+)"/,
+      /'name'\s*:\s*'([^']+)'/,
+      /name\s*:\s*([^,}\]]+)/,
+      /"([^"]+)"\s*<[^>]*>/,
+      /'([^']+)'\s*<[^>]*>/,
+      /([^<]+)\s*<[^>]*>/,
+      /"([^"]+)"/,
+      /'([^']+)'/,
+    ];
+
+    for (const pattern of namePatterns) {
+      const nameMatch = rawData.match(pattern);
+      if (nameMatch && nameMatch[1]) {
+        const potentialName = nameMatch[1].trim();
+        if (potentialName && potentialName !== email && !potentialName.includes('@')) {
+          name = potentialName.replace(/[{}[\],]/g, '').trim();
+          if (name) break;
+        }
+      }
+    }
+
+    console.warn('[SuggestRecipients] Extracted from malformed data:', { email, name });
+    return { email, name };
+  }
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     if (shouldDropTables) this.dropTables();
@@ -1786,21 +1827,10 @@ export class ZeroDriver extends AIChatAgent<typeof env> {
         try {
           sender = JSON.parse(String(row.latest_sender));
         } catch (error) {
-          const rawData = String(row.latest_sender);
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-          
-          if (emailRegex.test(rawData.trim())) {
-            sender = { email: rawData.trim(), name: undefined };
-            console.warn('[SuggestRecipients] Used fallback parsing for email:', rawData);
-          } else {
-            const emailMatch = rawData.match(/([^\s@]+@[^\s@]+\.[^\s@]+)/);
-            if (emailMatch) {
-              sender = { email: emailMatch[1], name: undefined };
-              console.warn('[SuggestRecipients] Extracted email from malformed data:', emailMatch[1]);
-            } else {
-              console.error('[SuggestRecipients] Failed to parse latest_sender, no fallback possible:', error, 'Raw data:', rawData);
-              continue;
-            }
+          sender = this.parseMalformedSender(String(row.latest_sender));
+          if (!sender) {
+            console.error('[SuggestRecipients] Failed to parse latest_sender, no fallback possible:', error, 'Raw data:', row.latest_sender);
+            continue;
           }
         }
         
