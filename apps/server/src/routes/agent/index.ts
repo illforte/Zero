@@ -1741,10 +1741,22 @@ export class ZeroDriver extends AIChatAgent<typeof env> {
   async suggestRecipients(query: string = '', limit: number = 10) {
     const lower = query.toLowerCase();
 
-    const rows = this.sql`
-      SELECT latest_sender, latest_received_on
-      FROM threads
-    ` as { latest_sender?: string; latest_received_on?: string }[];
+    const rows = (lower 
+      ? this.sql`
+          SELECT latest_sender, latest_received_on
+          FROM threads
+          WHERE latest_sender IS NOT NULL 
+            AND (latest_sender LIKE ${'%' + lower + '%'})
+          ORDER BY latest_received_on DESC
+          LIMIT 50
+        `
+      : this.sql`
+          SELECT latest_sender, latest_received_on
+          FROM threads
+          WHERE latest_sender IS NOT NULL
+          ORDER BY latest_received_on DESC
+          LIMIT 50
+        `) as { latest_sender?: string; latest_received_on?: string }[];
 
     const map = new Map<string, { email: string; name?: string | null; freq: number; last: number }>();
 
@@ -1769,7 +1781,8 @@ export class ZeroDriver extends AIChatAgent<typeof env> {
           entry.freq += 1;
           if (lastTs > entry.last) entry.last = lastTs;
         }
-      } catch {
+      } catch (error) {
+        console.error('[SuggestRecipients] Failed to parse latest_sender JSON:', error, 'Raw data:', row.latest_sender);
       }
     }
 

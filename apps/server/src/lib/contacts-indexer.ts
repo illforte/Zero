@@ -15,7 +15,9 @@ export async function buildContactsIndex(connectionId: string) {
   try {
     const aliases = await agent.getEmailAliases();
     userEmails = new Set(aliases.map((a: { email: string }) => normalise(a.email)));
-  } catch {}
+  } catch (error) {
+    console.error(`[ContactsIndexer] Failed to fetch email aliases for ${connectionId}:`, error);
+  }
   const emailsMap = new Map<string, { email: string; name?: string | null; freq: number }>();
   
   const addEmail = (email: string, name?: string | null, weight = 1) => {
@@ -36,7 +38,6 @@ export async function buildContactsIndex(connectionId: string) {
     try {
       console.log(`[ContactsIndexer] Processing ${folder}...`);
       let cursor = '';
-      let pageCount = 0;
       
       do {
         const batch = (await agent.listThreads({
@@ -78,7 +79,9 @@ export async function buildContactsIndex(connectionId: string) {
               addRecipients(ccList, userIsSender ? weightBase : weightBase - 1);
               addRecipients(bccList, userIsSender ? weightBase : weightBase - 1);
             });
-          } catch {}
+          } catch (error) {
+            console.error(`[ContactsIndexer] Failed to process thread ${thread.id} for ${connectionId}:`, error);
+          }
         };
 
         const concurrency = 5;
@@ -88,7 +91,6 @@ export async function buildContactsIndex(connectionId: string) {
         }
         
         totalProcessed += threads.length;
-        pageCount++;
         cursor = batch.nextPageToken || '';
         
         if (totalProcessed % 500 === 0) {

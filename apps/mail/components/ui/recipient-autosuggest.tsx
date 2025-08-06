@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useCallback, useMemo } from 'react';
-import type { RefObject } from 'react';
 import { useController, type Control } from 'react-hook-form';
 import { useTRPC } from '@/providers/query-provider';
 import { useQuery } from '@tanstack/react-query';
@@ -40,33 +39,12 @@ export function RecipientAutosuggest({
     defaultValue: [],
   });
 
-  const {
-    field: { value: inputValue = '', onChange: onInputChange, ref: inputRefRHF },
-  } = useController({
-    control,
-    name: `${name}Input`,
-    defaultValue: '',
-  });
-  
+  const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isComposing, setIsComposing] = useState(false);
   
   const inputDomRef = useRef<HTMLInputElement>(null);
-
-  const combinedRef = useCallback(
-    (element: HTMLInputElement | null) => {
-      inputDomRef.current = element;
-      if (inputRefRHF) {
-        if (typeof inputRefRHF === 'function') {
-          inputRefRHF(element);
-        } else if ('current' in inputRefRHF) {
-          (inputRefRHF as RefObject<HTMLInputElement | null>).current = element;
-        }
-      }
-    },
-    [inputRefRHF],
-  );
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const debouncedSetQuery = useDebounce((query: string) => {
@@ -95,7 +73,7 @@ export function RecipientAutosuggest({
   const addRecipient = useCallback((email: string) => {
     if (!recipients.includes(email) && isValidEmail(email)) {
       onRecipientsChange([...recipients, email]);
-      onInputChange('');
+      setInputValue('');
       setIsOpen(false);
       setSelectedIndex(-1);
     }
@@ -108,7 +86,7 @@ export function RecipientAutosuggest({
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    onInputChange(value);
+    setInputValue(value);
     setSelectedIndex(-1);
     debouncedSetQuery(value);
     setIsOpen(value.trim().length > 0);
@@ -224,7 +202,7 @@ export function RecipientAutosuggest({
           </div>
         ))}
         <input
-          ref={combinedRef}
+          ref={inputDomRef}
           type="email"
           value={inputValue}
           onChange={handleInputChange}
@@ -243,7 +221,9 @@ export function RecipientAutosuggest({
       {isOpen && (filteredSuggestions.length > 0 || isLoading) && (
         <div
           ref={dropdownRef}
-          className="absolute top-full left-0 right-0 z-[9999] mt-1 max-h-60 overflow-auto rounded-md border bg-popover p-1 shadow-md animate-in fade-in-0 zoom-in-95"
+          className="absolute top-full left-0 right-0 z-50 mt-1 max-h-60 overflow-auto rounded-md border bg-popover p-1 shadow-md animate-in fade-in-0 zoom-in-95"
+          id="recipient-suggestions"
+          role="listbox"
         >
           {isLoading && (
             <div className="px-2 py-1.5 text-sm text-muted-foreground">
