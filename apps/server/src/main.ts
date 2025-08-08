@@ -30,6 +30,7 @@ import { ShardRegistry, ZeroAgent, ZeroDriver } from './routes/agent';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { ThreadSyncWorker } from './routes/agent/sync-worker';
 import { oAuthDiscoveryMetadata } from 'better-auth/plugins';
+import { getListUnsubscribeAction } from './lib/email-utils';
 import { EProviders, type IEmailSendBatch } from './types';
 import { ThinkingMCP } from './lib/sequential-thinking';
 import { contextStorage } from 'hono/context-storage';
@@ -680,8 +681,6 @@ class ZeroDB extends DurableObject<ZeroEnv> {
     limit?: number;
     offset?: number;
   }) {
-    const { db, conn } = createDb(env.HYPERDRIVE.connectionString);
-
     try {
       const conditions = [eq(subscriptions.userId, params.userId)];
 
@@ -698,7 +697,7 @@ class ZeroDB extends DurableObject<ZeroEnv> {
       }
 
       const [items, totalResult] = await Promise.all([
-        db
+        this.db
           .select({
             id: subscriptions.id,
             senderEmail: subscriptions.senderEmail,
@@ -720,7 +719,7 @@ class ZeroDB extends DurableObject<ZeroEnv> {
           .orderBy(desc(subscriptions.lastEmailReceivedAt))
           .limit(params.limit || 50)
           .offset(params.offset || 0),
-        db
+        this.db
           .select({ count: sql<number>`count(*)` })
           .from(subscriptions)
           .where(and(...conditions)),
@@ -733,16 +732,14 @@ class ZeroDB extends DurableObject<ZeroEnv> {
         total,
         hasMore: (params.offset || 0) + items.length < total,
       };
-    } finally {
-      await conn.end();
+    } catch {
+      throw new Error('Failed to list subscriptions');
     }
   }
 
   async getSubscription(subscriptionId: string, userId: string) {
-    const { db, conn } = createDb(env.HYPERDRIVE.connectionString);
-
     try {
-      const [subscription] = await db
+      const [subscription] = await this.db
         .select()
         .from(subscriptions)
         .where(and(eq(subscriptions.id, subscriptionId), eq(subscriptions.userId, userId)));
@@ -752,7 +749,7 @@ class ZeroDB extends DurableObject<ZeroEnv> {
       }
 
       // Get recent threads
-      const recentThreads = await db
+      const recentThreads = await this.db
         .select({
           threadId: subscriptionThreads.threadId,
           messageId: subscriptionThreads.messageId,
@@ -768,17 +765,15 @@ class ZeroDB extends DurableObject<ZeroEnv> {
         ...subscription,
         recentThreads,
       };
-    } finally {
-      await conn.end();
+    } catch {
+      throw new Error('Failed to get subscription');
     }
   }
 
   async unsubscribeFromEmail(subscriptionId: string, userId: string) {
-    const { db, conn } = createDb(env.HYPERDRIVE.connectionString);
-
     try {
       // Get subscription details
-      const [subscription] = await db
+      const [subscription] = await this.db
         .select()
         .from(subscriptions)
         .where(and(eq(subscriptions.id, subscriptionId), eq(subscriptions.userId, userId)));
@@ -788,7 +783,7 @@ class ZeroDB extends DurableObject<ZeroEnv> {
       }
 
       // Update subscription as inactive
-      await db
+      await this.db
         .update(subscriptions)
         .set({
           isActive: false,
@@ -800,7 +795,6 @@ class ZeroDB extends DurableObject<ZeroEnv> {
       // If there's a List-Unsubscribe header, return the action
       let unsubscribeAction = null;
       if (subscription.listUnsubscribeUrl) {
-        const { getListUnsubscribeAction } = await import('../../lib/email-utils');
         unsubscribeAction = getListUnsubscribeAction({
           listUnsubscribe: subscription.listUnsubscribeUrl,
           listUnsubscribePost: subscription.listUnsubscribePost || undefined,
@@ -811,16 +805,14 @@ class ZeroDB extends DurableObject<ZeroEnv> {
         success: true,
         unsubscribeAction,
       };
-    } finally {
-      await conn.end();
+    } catch {
+      throw new Error('Failed to resubscribe to email');
     }
   }
 
   async resubscribeToEmail(subscriptionId: string, userId: string) {
-    const { db, conn } = createDb(env.HYPERDRIVE.connectionString);
-
     try {
-      await db
+      await this.db
         .update(subscriptions)
         .set({
           isActive: true,
@@ -830,8 +822,8 @@ class ZeroDB extends DurableObject<ZeroEnv> {
         .where(and(eq(subscriptions.id, subscriptionId), eq(subscriptions.userId, userId)));
 
       return { success: true };
-    } finally {
-      await conn.end();
+    } catch {
+      throw new Error('Failed to resubscribe to email');
     }
   }
 
@@ -841,8 +833,6 @@ class ZeroDB extends DurableObject<ZeroEnv> {
     autoArchive?: boolean;
     category?: string;
   }) {
-    const { db, conn } = createDb(env.HYPERDRIVE.connectionString);
-
     try {
       const updateData: any = {
         updatedAt: new Date(),
@@ -856,7 +846,7 @@ class ZeroDB extends DurableObject<ZeroEnv> {
         updateData.category = params.category;
       }
 
-      await db
+      await this.db
         .update(subscriptions)
         .set(updateData)
         .where(
@@ -864,8 +854,8 @@ class ZeroDB extends DurableObject<ZeroEnv> {
         );
 
       return { success: true };
-    } finally {
-      await conn.end();
+    } catch {
+      throw new Error('Failed to update subscription preferences');
     }
   }
 
