@@ -99,13 +99,11 @@ export const useSubscriptions = () => {
     onSuccess: (result, _variables) => {
       void subscriptionsQuery.refetch();
 
-      // Handle List-Unsubscribe action if available
       if (result.unsubscribeAction) {
         const action = result.unsubscribeAction;
         if (action.type === 'get' && action.url) {
           window.open(action.url, '_blank', 'noopener,noreferrer');
         }
-        // For 'post' and 'email' types, we'd need additional UI
       }
     },
   });
@@ -188,77 +186,8 @@ export const useSubscriptions = () => {
     setSelectedIds(new Set());
   }, []);
 
-  // const subscriptions = useMemo(() => {
-  //   const subscriptions: SubscriptionItem[] = [
-  //     {
-  //       id: '1',
-  //       senderEmail: 'test@test.com',
-  //       senderName: 'Test',
-  //       senderDomain: 'test.com',
-  //       category: 'general',
-  //       lastEmailReceivedAt: new Date(),
-  //       emailCount: 10,
-  //       isActive: true,
-  //       autoArchive: false,
-  //       createdAt: new Date(),
-  //     },
-  //     {
-  //       id: '2',
-  //       senderEmail: 'test2@test.com',
-  //       senderName: 'Test 2',
-  //       senderDomain: 'test2.com',
-  //       category: 'newsletter',
-  //       lastEmailReceivedAt: new Date(),
-  //       emailCount: 10,
-  //       isActive: true,
-  //       autoArchive: false,
-  //       createdAt: new Date(),
-  //     },
-  //     {
-  //       id: '3',
-  //       senderEmail: 'test3@test.com',
-  //       senderName: 'Test 3',
-  //       senderDomain: 'test3.com',
-  //       category: 'promotional',
-  //       lastEmailReceivedAt: new Date(),
-  //       emailCount: 10,
-  //       isActive: true,
-  //       autoArchive: false,
-  //       createdAt: new Date(),
-  //     },
-  //     {
-  //       id: '4',
-  //       senderEmail: 'test4@linear.app',
-  //       senderName: 'Test 4',
-  //       senderDomain: 'test4.com',
-  //       category: 'social',
-  //       lastEmailReceivedAt: new Date(),
-  //       emailCount: 10,
-  //       isActive: true,
-  //       autoArchive: false,
-  //       createdAt: new Date(),
-  //     },
-  //     {
-  //       id: '5',
-  //       senderEmail: 'test5@google.com',
-  //       senderName: 'Test 5',
-  //       senderDomain: 'test5.com',
-  //       category: 'transactional',
-  //       lastEmailReceivedAt: new Date(),
-  //       emailCount: 10,
-  //       isActive: false,
-  //       autoArchive: false,
-  //       createdAt: new Date(),
-  //     },
-  //   ];
-
-  //   return subscriptions;
-  // }, [filteredSubscriptions]);
-
   return {
-    // Data
     subscriptions: filteredSubscriptions,
-    // subscriptions,
     stats: statsQuery.data as
       | {
           overall: {
