@@ -70,7 +70,7 @@ import { Effect, pipe } from 'effect';
 import { groq } from '@ai-sdk/groq';
 import { createDb } from '../../db';
 import type { Message } from 'ai';
-import { eq } from 'drizzle-orm';
+import { eq, desc, isNotNull } from 'drizzle-orm';
 import { create } from './db';
 
 const decoder = new TextDecoder();
@@ -328,6 +328,53 @@ export class ZeroDriver extends DurableObject<ZeroEnv> {
   private agent: DurableObjectStub<ZeroAgent> | null = null;
   private name: string = 'general';
   private connection: typeof connection.$inferSelect | null = null;
+  private recipientCache: { contacts: Array<{ email: string; name?: string | null; freq: number; last: number }>; hash: string } | null = null;
+
+  private invalidateRecipientCache() {
+    this.recipientCache = null;
+  }
+
+  private parseMalformedSender(rawData: string): { email: string; name?: string } | null {
+    const emailRegex = /([^\s@]+@[^\s@]+\.[^\s@]+)/;
+    
+    if (emailRegex.test(rawData.trim())) {
+      const email = rawData.trim();
+      console.warn('[SuggestRecipients] Used fallback parsing for plain email:', email);
+      return { email, name: undefined };
+    }
+
+    const emailMatch = rawData.match(emailRegex);
+    if (!emailMatch) return null;
+    
+    const email = emailMatch[1];
+    let name: string | undefined = undefined;
+
+    const namePatterns = [
+      /"name"\s*:\s*"([^"]+)"/,
+      /'name'\s*:\s*'([^']+)'/,
+      /name\s*:\s*([^,}\]]+)/,
+      /"([^"]+)"\s*<[^>]*>/,
+      /'([^']+)'\s*<[^>]*>/,
+      /([^<]+)\s*<[^>]*>/,
+      /"([^"]+)"/,
+      /'([^']+)'/,
+    ];
+
+    for (const pattern of namePatterns) {
+      const nameMatch = rawData.match(pattern);
+      if (nameMatch && nameMatch[1]) {
+        const potentialName = nameMatch[1].trim();
+        if (potentialName && potentialName !== email && !potentialName.includes('@')) {
+          name = potentialName.replace(/[{}[\],]/g, '').trim();
+          if (name) break;
+        }
+      }
+    }
+
+    console.warn('[SuggestRecipients] Extracted from malformed data:', { email, name });
+    return { email, name };
+  }
+
   constructor(ctx: DurableObjectState, env: ZeroEnv) {
     super(ctx, env);
     this.sql = ctx.storage.sql;
@@ -589,14 +636,18 @@ export class ZeroDriver extends DurableObject<ZeroEnv> {
     if (!this.driver) {
       throw new Error('No driver available');
     }
-    return await this.driver.sendDraft(id, data);
+    const result = await this.driver.sendDraft(id, data);
+    this.invalidateRecipientCache();
+    return result;
   }
 
   async create(data: IOutgoingMessage) {
     if (!this.driver) {
       throw new Error('No driver available');
     }
-    return await this.driver.create(data);
+    const result = await this.driver.create(data);
+    this.invalidateRecipientCache();
+    return result;
   }
 
   async delete(id: string) {
@@ -842,6 +893,16 @@ export class ZeroDriver extends DurableObject<ZeroEnv> {
     return `${this.name}/${threadId}.json`;
   }
 
+ 
+  async deleteThread(id: string) {
+    await this.db.delete(threads).where(eq(threads.threadId, id));
+    this.invalidateRecipientCache();
+    this.agent?.broadcastChatMessage({
+      type: OutgoingMessageType.Mail_List,
+      folder: 'trash',
+    });
+  }
+
   async reloadFolder(folder: string) {
     this.agent?.broadcastChatMessage({
       type: OutgoingMessageType.Mail_List,
@@ -922,7 +983,10 @@ export class ZeroDriver extends DurableObject<ZeroEnv> {
           ),
         ).pipe(
           Effect.tap(() =>
-            Effect.sync(() => console.log(`[syncThread] Updated database for ${threadId}`)),
+            Effect.sync(() => {
+              console.log(`[syncThread] Updated database for ${threadId}`);
+              this.invalidateRecipientCache();
+            }),
           ),
           Effect.tap(() => Effect.sync(() => this.reloadFolder('inbox'))),
           Effect.catchAll((error) => {
@@ -1430,6 +1494,99 @@ export class ZeroDriver extends DurableObject<ZeroEnv> {
       throw new Error('No driver available');
     }
     return await this.getThreadsFromDB(params);
+  }
+
+  async get(id: string) {
+    if (!this.driver) {
+      throw new Error('No driver available');
+    }
+    return await this.getThreadFromDB(id);
+  }
+
+  async suggestRecipients(query: string = '', limit: number = 10) {
+    const lower = query.toLowerCase();
+    
+    const hashRows = await this.db.select({ id: threads.id }).from(threads).where(isNotNull(threads.latestSender)).orderBy(desc(threads.latestReceivedOn)).limit(100);
+    
+    const currentHash = hashRows.map(r => r.id).join(',');
+    
+    if (!this.recipientCache || this.recipientCache.hash !== currentHash) {
+      const rows = await this.db.select({ 
+        latest_sender: threads.latestSender, 
+        latest_received_on: threads.latestReceivedOn 
+      }).from(threads).where(isNotNull(threads.latestSender)).orderBy(desc(threads.latestReceivedOn)).limit(100);
+
+      const map = new Map<string, { email: string; name?: string | null; freq: number; last: number }>();
+
+      for (const row of rows) {
+        if (!row?.latest_sender) continue;
+        
+        let sender: { email?: string; name?: string } | null = null;
+        
+        try {
+          const senderData = row.latest_sender;
+          if (typeof senderData === 'string') {
+            sender = JSON.parse(senderData);
+          } else if (typeof senderData === 'object' && senderData !== null) {
+            sender = senderData as { email?: string; name?: string };
+          } else {
+            sender = this.parseMalformedSender(String(senderData));
+          }
+          
+          if (!sender) {
+            console.error('[SuggestRecipients] Failed to parse latest_sender, no fallback possible. Raw data:', row.latest_sender);
+            continue;
+          }
+        } catch (error) {
+          sender = this.parseMalformedSender(String(row.latest_sender));
+          if (!sender) {
+            console.error('[SuggestRecipients] Failed to parse latest_sender, no fallback possible:', error, 'Raw data:', row.latest_sender);
+            continue;
+          }
+        }
+        
+        if (!sender?.email) continue;
+
+        const key = sender.email.toLowerCase();
+        const lastTs = row.latest_received_on ? new Date(String(row.latest_received_on)).getTime() : 0;
+
+        if (!map.has(key)) {
+          map.set(key, {
+            email: sender.email,
+            name: sender.name || null,
+            freq: 1,
+            last: lastTs,
+          });
+        } else {
+          const entry = map.get(key)!;
+          entry.freq += 1;
+          if (lastTs > entry.last) entry.last = lastTs;
+        }
+      }
+
+      this.recipientCache = {
+        contacts: Array.from(map.values()),
+        hash: currentHash,
+      };
+    }
+
+    let contacts = this.recipientCache.contacts.slice();
+
+    if (lower) {
+      contacts = contacts.filter(
+        (c) =>
+          c.email.toLowerCase().includes(lower) ||
+          (c.name && c.name.toLowerCase().includes(lower)),
+      );
+    }
+
+    contacts.sort((a, b) => b.freq - a.freq || b.last - a.last);
+
+    return contacts.slice(0, limit).map((c) => ({
+      email: c.email,
+      name: c.name,
+      displayText: c.name ? `${c.name} <${c.email}>` : c.email,
+    }));
   }
 
   //   async get(id: string, includeDrafts: boolean = false) {
