@@ -28,6 +28,18 @@ type SerializableEmailData = Omit<EmailData, 'attachments'> & {
   attachments: SerializedFile[];
 };
 
+type ReplyMode = 'reply' | 'replyAll' | 'forward';
+
+type UndoContext =
+  | { kind: 'compose' }
+  | {
+      kind: 'reply';
+      threadId: string;
+      mode: ReplyMode;
+      activeReplyId: string;
+      draftId?: string | null;
+    };
+
 const serializeFiles = async (files: File[]): Promise<SerializedFile[]> => {
   return Promise.all(
     files.map(async (file) => ({
@@ -61,9 +73,10 @@ export const useUndoSend = () => {
   const { mutateAsync: unsendEmail } = useMutation(trpc.mail.unsend.mutationOptions());
 
   const handleUndoSend = (
-    result: unknown, 
+    result: unknown,
     settings: { settings: UserSettings } | undefined,
-    emailData?: EmailData
+    emailData?: EmailData,
+    context: UndoContext = { kind: 'compose' },
   ) => {
     if (isSendResult(result) && settings?.settings?.undoSendEnabled) {
       const { messageId, sendAt } = result;
@@ -84,14 +97,39 @@ export const useUndoSend = () => {
                     ...emailData,
                     attachments: serializedAttachments,
                   };
-                  localStorage.setItem('undoEmailData', JSON.stringify(serializableData));
+                  if (context.kind === 'reply') {
+                    const withContext = {
+                      ...serializableData,
+                      __replyContext: {
+                        threadId: context.threadId,
+                        activeReplyId: context.activeReplyId,
+                        mode: context.mode,
+                        draftId: context.draftId ?? null,
+                      },
+                    } as const;
+                    localStorage.setItem('undoReplyEmailData', JSON.stringify(withContext));
+                  } else {
+                    localStorage.setItem('undoEmailData', JSON.stringify(serializableData));
+                  }
                 }
                 
                 const url = new URL(window.location.href);
-                url.searchParams.delete('activeReplyId');
-                url.searchParams.delete('mode');
-                url.searchParams.delete('draftId');
-                url.searchParams.set('isComposeOpen', 'true');
+                if (context.kind === 'reply') {
+                  url.searchParams.delete('isComposeOpen');
+                  url.searchParams.set('threadId', context.threadId);
+                  url.searchParams.set('activeReplyId', context.activeReplyId);
+                  url.searchParams.set('mode', context.mode);
+                  if (context.draftId) {
+                    url.searchParams.set('draftId', context.draftId);
+                  } else {
+                    url.searchParams.delete('draftId');
+                  }
+                } else {
+                  url.searchParams.delete('activeReplyId');
+                  url.searchParams.delete('mode');
+                  url.searchParams.delete('draftId');
+                  url.searchParams.set('isComposeOpen', 'true');
+                }
                 window.history.replaceState({}, '', url.toString());
                 
                 toast.info('Send cancelled');
