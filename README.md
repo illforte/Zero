@@ -1,3 +1,5 @@
+test
+
 <p align="center">
   <picture>
     <source srcset="apps/mail/public/white-icon.svg" media="(prefers-color-scheme: dark)">
