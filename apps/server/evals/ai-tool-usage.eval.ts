@@ -2,10 +2,8 @@ import { evalite } from "evalite";
 import { openai } from "@ai-sdk/openai";
 import { streamText } from "ai";
 import { traceAISDKModel } from "evalite/ai-sdk";
-import { Factuality, EmbeddingSimilarity, ExactMatch } from "autoevals";
+import { Factuality, EmbeddingSimilarity } from "autoevals";
 import { AiChatPrompt, GmailSearchAssistantSystemPrompt, StyledEmailAssistantSystemPrompt } from "../src/lib/prompts";
-import { generateObject } from "ai";
-import { z } from "zod";
 
 // base model (untraced) for internal helpers to avoid trace errors
 const baseModel = openai("gpt-4o-mini");
