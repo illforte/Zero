@@ -3,6 +3,7 @@ import { getThread, getZeroAgent } from '../../lib/server-utils';
 import type { IGetThreadResponse } from '../../lib/driver/types';
 import { composeEmail } from '../../trpc/routes/ai/compose';
 import { perplexity } from '@ai-sdk/perplexity';
+import { getArcadeTools } from './arcade-tools';
 import { colors } from '../../lib/prompts';
 import { openai } from '@ai-sdk/openai';
 import { generateText, tool } from 'ai';
@@ -480,6 +481,8 @@ export const webSearch = () =>
   });
 
 export const tools = async (connectionId: string, ragEffect: boolean = false) => {
+  const arcadeTools = await getArcadeTools(connectionId);
+
   const _tools = {
     [Tools.GetThread]: getEmail(),
     [Tools.GetThreadSummary]: getThreadSummary(connectionId),
@@ -510,6 +513,7 @@ export const tools = async (connectionId: string, ragEffect: boolean = false) =>
         return res.threadIds;
       },
     }),
+    ...arcadeTools,
   };
   if (ragEffect) return _tools;
   return {

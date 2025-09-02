@@ -47,6 +47,7 @@ import { connectionToDriver, getZeroSocketAgent, reSyncThread } from '../../lib/
 import { generateWhatUserCaresAbout, type UserTopic } from '../../lib/analyze/interests';
 import { DurableObjectOAuthClientProvider } from 'agents/mcp/do-oauth-client-provider';
 import { AiChatPrompt, GmailSearchAssistantSystemPrompt } from '../../lib/prompts';
+import { getArcadeToolsForConnection } from './arcade-tools';
 import { Migratable, Queryable, Transfer } from 'dormroom';
 import type { CreateDraftData } from '../../lib/schemas';
 import { drizzle } from 'drizzle-orm/durable-sqlite';
@@ -1755,9 +1756,22 @@ export class ZeroAgent extends AIChatAgent<ZeroEnv> {
 
         const mcpTools = this.mcp.unstable_getAITools();
 
+        let arcadeTools = {};
+        try {
+          arcadeTools = await getArcadeToolsForConnection(connectionId);
+          if (Object.keys(arcadeTools).length > 0) {
+            console.log(
+              `[ZeroAgent] Loaded ${Object.keys(arcadeTools).length} Arcade tools directly`,
+            );
+          }
+        } catch (error) {
+          console.error('[ZeroAgent] Error loading Arcade tools:', error);
+        }
+
         const rawTools = {
           ...(await authTools(connectionId)),
           ...mcpTools,
+          ...arcadeTools,
         };
 
         const tools = orchestrator.processTools(rawTools);

@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { createRateLimiterMiddleware, privateProcedure, router } from '../trpc';
 import type { ToolDefinition } from '@arcadeai/arcadejs/resources/tools/tools';
 import { Ratelimit } from '@upstash/ratelimit';
@@ -215,6 +216,68 @@ export const arcadeConnections = router({
           code: 'INTERNAL_SERVER_ERROR',
           message: 'Failed to revoke authorization',
         });
+      }
+    }),
+
+  getAvailableTools: privateProcedure
+    .use(
+      createRateLimiterMiddleware({
+        limiter: Ratelimit.slidingWindow(60, '1m'),
+        generatePrefix: ({ sessionUser }) => `ratelimit:arcade-available-tools-${sessionUser?.id}`,
+      }),
+    )
+    .query(async ({ ctx }) => {
+      try {
+        const arcade = getArcadeClient();
+
+        const connections = await arcade.admin.userConnections.list({ user: ctx.sessionUser.id });
+
+        if (!connections.items || connections.items.length === 0) {
+          return { tools: [] };
+        }
+
+        const availableTools: Array<{
+          toolkit: string;
+          toolName: string;
+          description: string;
+          parameters: Record<string, unknown>;
+        }> = [];
+
+        for (const connection of connections.items) {
+          const toolkit = connection.provider_id?.split('-')[0];
+          if (!toolkit) continue;
+
+          try {
+            const toolsList = await arcade.tools.list({ toolkit });
+
+            for (const tool of toolsList.items) {
+              const toolWithDef = tool as ToolDefinition & {
+                definition?: {
+                  description?: string;
+                  parameters?: Record<string, unknown>;
+                };
+              };
+              const toolDefinition = toolWithDef.definition || {};
+              availableTools.push({
+                toolkit,
+                toolName: tool.name,
+                description: toolDefinition.description || `${tool.name} from ${toolkit}`,
+                parameters: toolDefinition.parameters || {},
+              });
+            }
+          } catch (error) {
+            console.error(`[Arcade] Failed to fetch tools for toolkit ${toolkit}:`, error);
+          }
+        }
+
+        console.log(
+          `[Arcade] Found ${availableTools.length} tools across ${connections.items.length} toolkits`,
+        );
+
+        return { tools: availableTools };
+      } catch (error) {
+        console.error('[Arcade Get Available Tools] Error:', error);
+        return { tools: [] };
       }
     }),
 });

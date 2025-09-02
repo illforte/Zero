@@ -1,5 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { useAIFullScreen, useAISidebar } from '../ui/ai-sidebar';
+import { ArcadeToolsDisplay } from './arcade-tools-display';
 import { VoiceProvider } from '@/providers/voice-provider';
 import useComposeEditor from '@/hooks/use-compose-editor';
 import { useRef, useCallback, useEffect } from 'react';
@@ -293,7 +294,11 @@ export function AIChat({
               const toolParts = message.parts.filter((part) => part.type === 'tool-invocation');
 
               return (
-                <div key={`${message.id}-${index}`} className="mb-2 flex flex-col" data-message-role={message.role}>
+                <div
+                  key={`${message.id}-${index}`}
+                  className="mb-2 flex flex-col"
+                  data-message-role={message.role}
+                >
                   {toolParts.map(
                     (part, index) =>
                       part.toolInvocation?.result && (
@@ -369,6 +374,7 @@ export function AIChat({
 
       {/* Fixed input at bottom */}
       <div className={cn('mb-4 shrink-0 px-4', isFullScreen ? 'px-0' : '')}>
+        <ArcadeToolsDisplay />
         <div className="bg-offsetLight relative rounded-lg p-2 dark:bg-[#202020]">
           <div className="flex flex-col">
             <div className="w-full">
