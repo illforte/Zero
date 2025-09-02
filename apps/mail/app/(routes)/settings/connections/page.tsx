@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { AddArcadeConnectionDialog } from '@/components/connection/add-arcade-connection';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { toolkitIcons } from '@/components/connection/add-arcade-connection';
 import { useArcadeConnections } from '@/hooks/use-arcade-connection';
 import { SettingsCard } from '@/components/settings/settings-card';
 import { AddConnectionDialog } from '@/components/connection/add';
@@ -244,9 +245,9 @@ export default function ConnectionsPage() {
               <AddConnectionDialog>
                 <Button
                   variant="outline"
-                  className="group relative w-9 overflow-hidden duration-200 hover:w-full sm:hover:w-[32.5%]"
+                  className="group relative w-10 overflow-hidden duration-200 hover:w-full sm:hover:w-[32.5%]"
                 >
-                  <Plus className="absolute left-2 h-4 w-4" />
+                  <Plus className="absolute h-4 w-4 group-hover:hidden" />
                   <span className="whitespace-nowrap pl-7 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                     {m['pages.settings.connections.addEmail']()}
                   </span>
@@ -256,9 +257,9 @@ export default function ConnectionsPage() {
               <Button
                 onClick={() => setPricingDialog('true')}
                 variant="outline"
-                className="group relative w-9 overflow-hidden duration-200 hover:w-full sm:hover:w-[32.5%]"
+                className="group relative w-10 overflow-hidden duration-200 hover:w-full sm:hover:w-[32.5%]"
               >
-                <Plus className="absolute left-2 h-4 w-4" />
+                <Plus className="absolute h-4 w-4 group-hover:hidden" />
                 <span className="whitespace-nowrap pl-7 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                   {m['pages.settings.connections.addEmail']()}
                 </span>
@@ -293,68 +294,76 @@ export default function ConnectionsPage() {
             </div>
           ) : arcadeConnections.length > 0 ? (
             <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
-              {arcadeConnections.map((connection) => (
-                <div
-                  key={connection.id}
-                  className="bg-popover flex items-center justify-between rounded-lg border p-4"
-                >
-                  <div className="flex min-w-0 items-center gap-4">
-                    <div className="flex min-w-0 flex-row gap-1">
-                      <span className="truncate text-sm font-medium capitalize">
-                        {connection.provider_id?.split('-')[0]}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="default" className="text-xs">
-                          Connected
-                        </Badge>
+              {arcadeConnections.map((connection) => {
+                const Icon = toolkitIcons[connection.provider_id?.split('-')[0] || ''];
+                return (
+                  <div
+                    key={connection.id}
+                    className="bg-popover flex items-center justify-between rounded-lg border p-4"
+                  >
+                    <div className="flex min-w-0 items-center gap-4">
+                      <div className="flex min-w-0 flex-row gap-4">
+                        <div className="bg-primary/10 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg">
+                          <Icon className="h-6 w-6" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="truncate text-sm font-medium capitalize">
+                            {connection.provider_id?.split('-')[0]}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="default" className="bg-green-500 text-xs">
+                              Connected
+                            </Badge>
+                          </div>
+                        </div>
                       </div>
                     </div>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="ml-4 shrink-0 text-red-500 hover:text-red-600"
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent showOverlay>
+                        <DialogHeader>
+                          <DialogTitle>
+                            Disconnect {connection.provider_id?.split('-')[0]}
+                          </DialogTitle>
+                          <DialogDescription>
+                            Are you sure you want to disconnect this integration?
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="flex justify-end gap-4">
+                          <DialogClose asChild>
+                            <Button variant="outline">Cancel</Button>
+                          </DialogClose>
+                          <DialogClose asChild>
+                            <Button
+                              onClick={async () => {
+                                try {
+                                  await revokeAuthorization({
+                                    connectionId: connection.connection_id!,
+                                  });
+                                  toast.success('Integration disconnected');
+                                  void refetchArcadeConnections();
+                                } catch {
+                                  toast.error('Failed to disconnect integration');
+                                }
+                              }}
+                            >
+                              Disconnect
+                            </Button>
+                          </DialogClose>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   </div>
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-muted-foreground hover:text-primary ml-4 shrink-0"
-                      >
-                        <Trash className="h-4 w-4" />
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent showOverlay>
-                      <DialogHeader>
-                        <DialogTitle>
-                          Disconnect {connection.provider_id?.split('-')[0]}
-                        </DialogTitle>
-                        <DialogDescription>
-                          Are you sure you want to disconnect this integration?
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="flex justify-end gap-4">
-                        <DialogClose asChild>
-                          <Button variant="outline">Cancel</Button>
-                        </DialogClose>
-                        <DialogClose asChild>
-                          <Button
-                            onClick={async () => {
-                              try {
-                                await revokeAuthorization({
-                                  connectionId: connection.connection_id!,
-                                });
-                                toast.success('Integration disconnected');
-                                void refetchArcadeConnections();
-                              } catch {
-                                toast.error('Failed to disconnect integration');
-                              }
-                            }}
-                          >
-                            Disconnect
-                          </Button>
-                        </DialogClose>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="text-muted-foreground py-8 text-center">
@@ -370,9 +379,9 @@ export default function ConnectionsPage() {
             <AddArcadeConnectionDialog onSuccess={() => void refetchArcadeConnections()}>
               <Button
                 variant="outline"
-                className="group relative w-9 overflow-hidden duration-200 hover:w-full sm:hover:w-[32.5%]"
+                className="group relative w-10 overflow-hidden duration-200 hover:w-full sm:hover:w-[32.5%]"
               >
-                <Plus className="absolute left-2 h-4 w-4" />
+                <Plus className="absolute h-4 w-4 group-hover:hidden" />
                 <span className="whitespace-nowrap pl-7 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                   Add Integration
                 </span>

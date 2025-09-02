@@ -15,7 +15,7 @@ import { Button } from '../ui/button';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
-const toolkitIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+export const toolkitIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   github: GitHub,
   linear: Linear,
 };
