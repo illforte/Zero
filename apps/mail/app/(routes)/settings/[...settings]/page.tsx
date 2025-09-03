@@ -22,7 +22,6 @@ export default function SettingsPage() {
   const params = useParams();
   const section = params.settings?.[0] || 'general';
 
-
   const SettingsComponent = settingsPages[section];
 
   if (!SettingsComponent) {

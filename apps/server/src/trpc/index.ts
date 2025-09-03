@@ -14,6 +14,7 @@ import { userRouter } from './routes/user';
 import { meetRouter } from './routes/meet';
 import { mailRouter } from './routes/mail';
 import { bimiRouter } from './routes/bimi';
+import { composioRouter } from './routes/composio';
 import type { HonoContext } from '../ctx';
 import { aiRouter } from './routes/ai';
 import { router } from './trpc';
@@ -24,6 +25,7 @@ export const appRouter = router({
   bimi: bimiRouter,
   brain: brainRouter,
   categories: categoriesRouter,
+  composio: composioRouter,
   connections: connectionsRouter,
   cookiePreferences: cookiePreferencesRouter,
   drafts: draftsRouter,

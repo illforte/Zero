@@ -513,6 +513,9 @@ importers:
       '@coinbase/cookie-manager':
         specifier: 1.1.8
         version: 1.1.8
+      '@composio/core':
+        specifier: 0.1.48
+        version: 0.1.48(ws@8.18.0)
       '@datadog/datadog-api-client':
         specifier: 1.40.0
         version: 1.40.0
@@ -639,6 +642,9 @@ importers:
       mimetext:
         specifier: ^3.0.27
         version: 3.0.27
+      openai:
+        specifier: 5.16.0
+        version: 5.16.0(ws@8.18.0)(zod@3.25.67)
       p-retry:
         specifier: 6.2.1
         version: 6.2.1
@@ -1212,6 +1218,15 @@ packages:
 
   '@coinbase/cookie-manager@1.1.8':
     resolution: {integrity: sha512-D57yF4uUuiKjfYRpBZFsGj+ME0dICS14K8JnoexVA/9QY+/W97ORz5tXG53p5upwuPLOBqte8ZoWJa+hBgGCSQ==}
+
+  '@composio/client@0.1.0-alpha.31':
+    resolution: {integrity: sha512-DVPVCMDXzoQn1aUZx38e8s5+gA/J/c6FpVfS1rzUnMKCRSuXXrOoKXFAvoRME5pcaKN2Wjux5ARyvIPBugNoMA==}
+
+  '@composio/core@0.1.48':
+    resolution: {integrity: sha512-zTzxrdaOlzlBjjolJ+n/5xGBDrBP3Qr4lwgq37CZjTmJQ5T2Ypk6uvcNV1HkYq7cAXNGU+ojzFryNDkkNCfT3A==}
+
+  '@composio/json-schema-to-zod@0.1.13':
+    resolution: {integrity: sha512-M/pppyhshlWB/5S6hjocFYYFCm9sFK1y9dTm70MpYl2EGJtpYDgwUeS9cFIzml+Iw/MUebr0wCJ0c+jOYeDU/A==}
 
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
@@ -7819,6 +7834,18 @@ packages:
       zod:
         optional: true
 
+  openai@5.16.0:
+    resolution: {integrity: sha512-hoEH8ZNvg1HXjU9mp88L/ZH8O082Z8r6FHCXGiWAzVRrEv443aI57qhch4snu07yQydj+AUAWLenAiBXhu89Tw==}
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.23.8
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
+
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
     engines: {node: '>= 0.8.0'}
@@ -8303,6 +8330,9 @@ packages:
 
   pure-rand@6.1.0:
     resolution: {integrity: sha512-bVWawvoZoBYpp6yIoQtQXHZjmz35RSVHnUOTefl8Vcjr8snTPY1wnpSPMWekcFwbxI6gtmT7rSYPFvz71ldiOA==}
+
+  pusher-js@8.4.0:
+    resolution: {integrity: sha512-wp3HqIIUc1GRyu1XrP6m2dgyE9MoCsXVsWNlohj0rjSkLf+a0jLvEyVubdg58oMk7bhjBWnFClgp8jfAa6Ak4Q==}
 
   pvtsutils@1.3.6:
     resolution: {integrity: sha512-PLgQXQ6H2FWCaeRak8vvk1GW462lMxB5s3Jm673N82zI4vqtVUPuZdffdZbPDFRoU8kAhItWFtPCWiPpp4/EDg==}
@@ -9289,6 +9319,9 @@ packages:
   turbo@2.5.6:
     resolution: {integrity: sha512-gxToHmi9oTBNB05UjUsrWf0OyN5ZXtD0apOarC1KIx232Vp3WimRNy3810QzeNSgyD5rsaIDXlxlbnOzlouo+w==}
     hasBin: true
+
+  tweetnacl@1.0.3:
+    resolution: {integrity: sha512-6rt+RN7aOi1nGMyC4Xa5DdYiukl2UWCbcJft7YhxReBGQD7OAM8Pbxw6YMo4r2diNEA8FEmu32YOn9rhaiE5yw==}
 
   twilio@5.7.0:
     resolution: {integrity: sha512-AcN9jo/C0sFitprIg2G6CJF+EACvff+8fiTMxf7Puz+6jtmc0NgJTwmyQbPiAnJcpXWOrPdI92Obr3PV4ZKXkw==}
@@ -10426,6 +10459,28 @@ snapshots:
   '@coinbase/cookie-manager@1.1.8':
     dependencies:
       js-cookie: 3.0.5
+
+  '@composio/client@0.1.0-alpha.31': {}
+
+  '@composio/core@0.1.48(ws@8.18.0)':
+    dependencies:
+      '@composio/client': 0.1.0-alpha.31
+      '@composio/json-schema-to-zod': 0.1.13
+      '@types/json-schema': 7.0.15
+      chalk: 4.1.2
+      openai: 5.16.0(ws@8.18.0)(zod@3.25.67)
+      pusher-js: 8.4.0
+      semver: 7.7.2
+      uuid: 11.1.0
+      zod: 3.25.67
+      zod-to-json-schema: 3.24.6(zod@3.25.67)
+    transitivePeerDependencies:
+      - ws
+
+  '@composio/json-schema-to-zod@0.1.13':
+    dependencies:
+      '@types/json-schema': 7.0.15
+      zod: 3.25.67
 
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
@@ -17579,6 +17634,11 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
+  openai@5.16.0(ws@8.18.0)(zod@3.25.67):
+    optionalDependencies:
+      ws: 8.18.0
+      zod: 3.25.67
+
   optionator@0.9.4:
     dependencies:
       deep-is: 0.1.4
@@ -18046,6 +18106,10 @@ snapshots:
   punycode@2.3.1: {}
 
   pure-rand@6.1.0: {}
+
+  pusher-js@8.4.0:
+    dependencies:
+      tweetnacl: 1.0.3
 
   pvtsutils@1.3.6:
     dependencies:
@@ -19247,6 +19311,8 @@ snapshots:
       turbo-linux-arm64: 2.5.6
       turbo-windows-64: 2.5.6
       turbo-windows-arm64: 2.5.6
+
+  tweetnacl@1.0.3: {}
 
   twilio@5.7.0:
     dependencies:
