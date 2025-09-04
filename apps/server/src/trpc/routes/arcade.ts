@@ -75,9 +75,10 @@ export const arcadeConnections = router({
         return { status: 'completed' };
       }
 
+      // Create a clean object to ensure serializability
       return {
-        authUrl: authResponse.url || '',
-        authId: authResponse.authId,
+        authUrl: String(authResponse.url || ''),
+        authId: String(authResponse.authId),
       };
     }),
 

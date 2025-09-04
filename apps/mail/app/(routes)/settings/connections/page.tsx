@@ -7,12 +7,10 @@ import {
   DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog';
-import { AddArcadeConnectionDialog } from '@/components/connection/add-arcade-connection';
-import { AddComposioConnectionDialog } from '@/components/connection/add-composio-connection';
+import { AddIntegrationDialog, toolkitIcons } from '@/components/connection/add-integration-dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { toolkitIcons } from '@/components/connection/add-arcade-connection';
-import { useArcadeConnections } from '@/hooks/use-arcade-connection';
 import { useComposioConnections } from '@/hooks/use-composio-connection';
+import { useArcadeConnections } from '@/hooks/use-arcade-connection';
 import { SettingsCard } from '@/components/settings/settings-card';
 import { AddConnectionDialog } from '@/components/connection/add';
 import { Trash, Plus, Unplug, Sparkles } from 'lucide-react';
@@ -52,9 +50,6 @@ export default function ConnectionsPage() {
   const { mutateAsync: deleteConnection } = useMutation(trpc.connections.delete.mutationOptions());
   const { mutateAsync: createArcadeConnection } = useMutation(
     trpc.arcadeConnections.createConnection.mutationOptions(),
-  );
-  const { mutateAsync: createComposioConnection } = useMutation(
-    trpc.composioConnections.createConnection.mutationOptions(),
   );
   const [{ refetch: refetchThreads }] = useThreads();
   const { isPro } = useBilling();
@@ -283,11 +278,11 @@ export default function ConnectionsPage() {
       </SettingsCard>
 
       <SettingsCard
-        title="Arcade Integrations"
-        description="Connect to external services through Arcade to enhance Zero Mail with AI-powered tools."
+        title="External Integrations"
+        description="Connect to external services through Arcade and Composio to enhance Zero Mail with AI-powered tools."
       >
         <div className="space-y-6">
-          {arcadeLoading ? (
+          {arcadeLoading || composioLoading ? (
             <div className="grid gap-4 md:grid-cols-3">
               {[...Array(3)].map((n) => (
                 <div
@@ -305,13 +300,14 @@ export default function ConnectionsPage() {
                 </div>
               ))}
             </div>
-          ) : arcadeConnections.length > 0 ? (
+          ) : arcadeConnections.length > 0 || composioConnections.length > 0 ? (
             <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
               {arcadeConnections.map((connection) => {
-                const Icon = toolkitIcons[connection?.provider_id?.split('-')[0] || ''] || Sparkles;
+                const toolkit = connection?.providerId?.split('-')[0] || '';
+                const Icon = toolkitIcons[toolkit.toLowerCase()] || Sparkles;
                 return (
                   <div
-                    key={connection?.id ?? ''}
+                    key={`arcade-${connection?.id}`}
                     className="bg-popover flex items-center justify-between rounded-lg border p-4"
                   >
                     <div className="flex min-w-0 items-center gap-4">
@@ -320,12 +316,13 @@ export default function ConnectionsPage() {
                           <Icon className="h-6 w-6" />
                         </div>
                         <div className="flex flex-col gap-1">
-                          <span className="truncate text-sm font-medium capitalize">
-                            {connection?.provider_id?.split('-')[0]}
-                          </span>
+                          <span className="truncate text-sm font-medium capitalize">{toolkit}</span>
                           <div className="flex items-center gap-2">
                             <Badge variant="default" className="bg-green-500 text-xs">
                               Connected
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              Arcade
                             </Badge>
                           </div>
                         </div>
@@ -343,9 +340,7 @@ export default function ConnectionsPage() {
                       </DialogTrigger>
                       <DialogContent showOverlay>
                         <DialogHeader>
-                          <DialogTitle>
-                            Disconnect {connection?.provider_id?.split('-')[0]}
-                          </DialogTitle>
+                          <DialogTitle>Disconnect {toolkit}</DialogTitle>
                           <DialogDescription>
                             Are you sure you want to disconnect this integration?
                           </DialogDescription>
@@ -359,7 +354,7 @@ export default function ConnectionsPage() {
                               onClick={async () => {
                                 try {
                                   await revokeAuthorization({
-                                    connectionId: connection?.connection_id,
+                                    connectionId: connection?.id,
                                   });
                                   toast.success('Integration disconnected');
                                   void refetchArcadeConnections();
@@ -377,63 +372,13 @@ export default function ConnectionsPage() {
                   </div>
                 );
               })}
-            </div>
-          ) : (
-            <div className="text-muted-foreground py-8 text-center">
-              <Sparkles className="mx-auto mb-4 h-12 w-12 opacity-50" />
-              <p className="text-sm">No integrations connected</p>
-              <p className="mt-1 text-xs">
-                Connect to external services to access powerful AI tools
-              </p>
-            </div>
-          )}
 
-          <div className="flex items-center justify-start">
-            <AddArcadeConnectionDialog onSuccess={() => void refetchArcadeConnections()}>
-              <Button
-                variant="outline"
-                className="group relative w-10 overflow-hidden duration-200 hover:w-full sm:hover:w-[32.5%]"
-              >
-                <Plus className="absolute h-4 w-4 group-hover:hidden" />
-                <span className="whitespace-nowrap pl-7 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                  Add Integration
-                </span>
-              </Button>
-            </AddArcadeConnectionDialog>
-          </div>
-        </div>
-      </SettingsCard>
-
-      <SettingsCard
-        title="Composio Integrations"
-        description="Connect to external services through Composio to enhance Zero Mail with AI-powered tools."
-      >
-        <div className="space-y-6">
-          {composioLoading ? (
-            <div className="grid gap-4 md:grid-cols-3">
-              {[...Array(3)].map((n) => (
-                <div
-                  key={n}
-                  className="bg-popover flex items-center justify-between rounded-lg border p-4"
-                >
-                  <div className="flex min-w-0 items-center gap-4">
-                    <Skeleton className="h-12 w-12 rounded-lg" />
-                    <div className="flex flex-col gap-1">
-                      <Skeleton className="h-4 w-full lg:w-32" />
-                      <Skeleton className="h-3 w-full lg:w-48" />
-                    </div>
-                  </div>
-                  <Skeleton className="ml-4 h-8 w-8 rounded-full" />
-                </div>
-              ))}
-            </div>
-          ) : composioConnections.length > 0 ? (
-            <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
               {composioConnections.map((connection) => {
-                const Icon = toolkitIcons[connection?.service || ''] || Sparkles;
+                const toolkit = connection?.providerId?.split('-')[0] || '';
+                const Icon = toolkitIcons[toolkit.toLowerCase()] || Sparkles;
                 return (
                   <div
-                    key={connection?.id ?? ''}
+                    key={`composio-${connection?.id}`}
                     className="bg-popover flex items-center justify-between rounded-lg border p-4"
                   >
                     <div className="flex min-w-0 items-center gap-4">
@@ -442,12 +387,13 @@ export default function ConnectionsPage() {
                           <Icon className="h-6 w-6" />
                         </div>
                         <div className="flex flex-col gap-1">
-                          <span className="truncate text-sm font-medium capitalize">
-                            {connection?.service}
-                          </span>
+                          <span className="truncate text-sm font-medium capitalize">{toolkit}</span>
                           <div className="flex items-center gap-2">
                             <Badge variant="default" className="bg-green-500 text-xs">
                               Connected
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              Composio
                             </Badge>
                           </div>
                         </div>
@@ -465,9 +411,7 @@ export default function ConnectionsPage() {
                       </DialogTrigger>
                       <DialogContent showOverlay>
                         <DialogHeader>
-                          <DialogTitle>
-                            Disconnect {connection?.service}
-                          </DialogTitle>
+                          <DialogTitle>Disconnect {toolkit}</DialogTitle>
                           <DialogDescription>
                             Are you sure you want to disconnect this integration?
                           </DialogDescription>
@@ -511,7 +455,12 @@ export default function ConnectionsPage() {
           )}
 
           <div className="flex items-center justify-start">
-            <AddComposioConnectionDialog onSuccess={() => void refetchComposioConnections()}>
+            <AddIntegrationDialog
+              onSuccess={() => {
+                void refetchArcadeConnections();
+                void refetchComposioConnections();
+              }}
+            >
               <Button
                 variant="outline"
                 className="group relative w-10 overflow-hidden duration-200 hover:w-full sm:hover:w-[32.5%]"
@@ -521,7 +470,7 @@ export default function ConnectionsPage() {
                   Add Integration
                 </span>
               </Button>
-            </AddComposioConnectionDialog>
+            </AddIntegrationDialog>
           </div>
         </div>
       </SettingsCard>

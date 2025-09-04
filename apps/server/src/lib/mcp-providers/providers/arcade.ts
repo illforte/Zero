@@ -237,24 +237,38 @@ export class ArcadeProvider implements MCPProvider {
         scopes,
       });
 
-      if (authResponse.status === 'completed') {
-        const authId = authResponse.id || userId;
-        this.authCache.set(`${userId}-${authId}`, toolkit);
+      // Debug logging to identify the issue
+      console.log('[ArcadeProvider] Raw auth response type:', typeof authResponse);
+      console.log('[ArcadeProvider] Raw auth response keys:', Object.keys(authResponse));
+
+      // Create a completely clean object to avoid DataCloneError
+      // Use JSON stringify/parse to ensure complete serializability
+      const cleanResponse = JSON.parse(
+        JSON.stringify({
+          status: authResponse.status || 'pending',
+          authId: authResponse.id || userId,
+          url: authResponse.url || '',
+        }),
+      );
+
+      console.log('[ArcadeProvider] Clean response:', cleanResponse);
+
+      if (cleanResponse.status === 'completed') {
+        this.authCache.set(`${userId}-${cleanResponse.authId}`, toolkit);
         return {
-          authId,
-          status: 'completed',
+          authId: cleanResponse.authId,
+          status: 'completed' as const,
         };
       }
 
-      const authId = authResponse.id || userId;
       if (authResponse.id) {
-        this.authCache.set(`${userId}-${authId}`, toolkit);
+        this.authCache.set(`${userId}-${cleanResponse.authId}`, toolkit);
       }
 
       return {
-        url: authResponse.url || '',
-        authId,
-        status: 'pending',
+        url: cleanResponse.url,
+        authId: cleanResponse.authId,
+        status: 'pending' as const,
       };
     } catch (error) {
       console.error('[ArcadeProvider] Failed to get auth URL:', error);
