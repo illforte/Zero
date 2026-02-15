@@ -112,11 +112,10 @@ export function Navigation() {
       {/* Desktop Navigation - Hidden on mobile */}
       <header className="fixed left-[50%] z-50 hidden w-full max-w-4xl translate-x-[-50%] items-center justify-center px-4 pt-6 lg:flex">
         <nav className="border-input/50 flex w-full max-w-4xl items-center justify-between gap-2 rounded-xl border-t bg-[#1E1E1E] p-3 px-6">
-          <div className="flex items-center gap-6">
-            <Link to="/" className="relative bottom-1 cursor-pointer">
-              <img src="white-icon.svg" alt="Zero Email" width={22} height={22} />
-              <span className="text-muted-foreground absolute -right-[-0.5px] text-[10px]">
-                beta
+            <Link to="/" className="relative bottom-1 cursor-pointer flex items-center gap-2">
+              <img src="white-icon.svg" alt="Lair404 Mail" width={22} height={22} />
+              <span className="text-white font-bold text-sm tracking-tight">
+                Lair404 <span className="text-muted-foreground font-normal text-[10px] ml-1">Fork</span>
               </span>
             </Link>
             <NavigationMenu>
