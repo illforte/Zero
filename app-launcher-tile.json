@@ -1,0 +1,61 @@
+{
+  "tile": {
+    "id": "mail-zero",
+    "name": "Mail-Zero",
+    "description": "AI-powered email client with Lair404 integration",
+    "icon": "📧",
+    "iconType": "emoji",
+    "category": "Communication",
+    "url": "https://mail.lair404.xyz",
+    "requiresAuth": true,
+    "authType": "cloudflare-access",
+    "status": "active",
+    "tags": ["email", "ai", "productivity", "communication"],
+    "features": [
+      "AI email assistant",
+      "Multi-account support",
+      "Lair404 SMTP integration",
+      "Email organization",
+      "Smart search"
+    ],
+    "metadata": {
+      "port": 3050,
+      "deployment": "docker",
+      "location": "lair404.xyz",
+      "healthEndpoint": "/health",
+      "version": "1.0.0"
+    },
+    "integration": {
+      "appLauncherPath": "apps/internal_dashboard/src/config/apps.ts",
+      "addToArray": "communicationApps",
+      "codeSnippet": {
+        "typescript": "{\n  id: 'mail-zero',\n  name: 'Mail-Zero',\n  description: 'AI-powered email client with Lair404 integration',\n  icon: '📧',\n  href: 'https://mail.lair404.xyz',\n  category: 'Communication',\n  requiresAuth: true,\n  tags: ['email', 'ai', 'productivity'],\n  status: 'active',\n  healthCheck: 'https://mail.lair404.xyz/health'\n}"
+      }
+    },
+    "styling": {
+      "primaryColor": "#4F46E5",
+      "accentColor": "#818CF8",
+      "tileBackground": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+      "hoverEffect": "scale-105",
+      "iconSize": "2rem"
+    }
+  },
+  "dashboardEntry": {
+    "section": "Communication Tools",
+    "order": 3,
+    "visible": true,
+    "quickAccess": true
+  },
+  "permissions": {
+    "allowedRoles": ["admin", "user"],
+    "requiredScopes": ["email:read", "email:write"],
+    "cloudflareAccessRequired": true
+  },
+  "monitoring": {
+    "healthCheckEnabled": true,
+    "healthCheckInterval": "5m",
+    "uptimeMonitoring": true,
+    "alertOnDown": true,
+    "alertChannel": "#lair404-alerts"
+  }
+}
