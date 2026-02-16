@@ -41,6 +41,7 @@ import { Autumn } from 'autumn-js';
 import { appRouter } from './trpc';
 import { cors } from 'hono/cors';
 import { Hono } from 'hono';
+import { cfAccessAuthRouter } from './routes/cf-access-auth';
 
 const SENTRY_HOST = 'o4509328786915328.ingest.us.sentry.io';
 const SENTRY_PROJECT_IDS = new Set(['4509328795303936']);
@@ -591,6 +592,7 @@ const api = new Hono<HonoContext>()
   .route('/ai', aiRouter)
   .route('/autumn', autumnApi)
   .route('/public', publicRouter)
+  .route('/auth/cf-access', cfAccessAuthRouter)
   .on(['GET', 'POST', 'OPTIONS'], '/auth/*', (c) => {
     return c.var.auth.handler(c.req.raw);
   })

@@ -39,6 +39,11 @@ export type ZeroEnv = {
   BETTER_AUTH_URL: string;
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
+  CF_ACCESS_AUD: string;
+  CF_ACCESS_TEAM_DOMAIN: string;
+  IMAP_PROXY_URL: string;
+  IMAP_URL: string;
+  SMTP_URL: string;
   RESEND_API_KEY: string;
   VITE_PUBLIC_POSTHOG_KEY: string;
   VITE_PUBLIC_POSTHOG_HOST: string;

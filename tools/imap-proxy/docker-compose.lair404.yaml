@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  imap-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: imap-proxy
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3060:3060"
+    environment:
+      PORT: 3060
+      NODE_ENV: production
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3060/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "com.lair404.service=imap-proxy"
+      - "com.lair404.port=3060"
