@@ -1,0 +1,121 @@
+version: '3.8'
+
+services:
+  mail-zero:
+    image: ghcr.io/illforte/mail-zero:latest
+    container_name: mail-zero
+    restart: unless-stopped
+    env_file: .env.lair404
+    environment:
+      NODE_ENV: production
+      VITE_PUBLIC_BACKEND_URL: https://mail-api.lair404.xyz
+      VITE_PUBLIC_APP_URL: https://mail.lair404.xyz
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@mail-zero-db:5432/${POSTGRES_DB}
+      REDIS_URL: ${REDIS_URL}
+      REDIS_TOKEN: ${REDIS_TOKEN}
+    depends_on:
+      mail-zero-db:
+        condition: service_healthy
+      mail-zero-migrations:
+        condition: service_completed_successfully
+      mail-zero-valkey:
+        condition: service_healthy
+      mail-zero-upstash-proxy:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3050:3000"
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3000']
+      interval: 90s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - mail-zero-net
+    labels:
+      - "com.lair404.service=mail-zero"
+      - "com.lair404.port=3050"
+
+  mail-zero-migrations:
+    image: ghcr.io/illforte/mail-zero:latest
+    container_name: mail-zero-migrations
+    env_file: .env.lair404
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@mail-zero-db:5432/${POSTGRES_DB}
+    depends_on:
+      mail-zero-db:
+        condition: service_healthy
+    command: ['pnpm', 'run', 'db:migrate']
+    restart: 'no'
+    networks:
+      - mail-zero-net
+
+  mail-zero-db:
+    image: postgres:17-alpine
+    container_name: mail-zero-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mailzero}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+      POSTGRES_DB: ${POSTGRES_DB:-mailzero}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - mail-zero-postgres:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5434:5432"
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', '${POSTGRES_USER:-mailzero}', '-d', '${POSTGRES_DB:-mailzero}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mail-zero-net
+    labels:
+      - "com.lair404.service=mail-zero-db"
+
+  mail-zero-valkey:
+    image: docker.io/bitnami/valkey:8.0
+    container_name: mail-zero-valkey
+    restart: unless-stopped
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+      - VALKEY_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
+    volumes:
+      - mail-zero-valkey:/bitnami/valkey/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-h', 'localhost', '-p', '6379', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mail-zero-net
+    labels:
+      - "com.lair404.service=mail-zero-valkey"
+
+  mail-zero-upstash-proxy:
+    image: hiett/serverless-redis-http:latest
+    container_name: mail-zero-upstash-proxy
+    restart: unless-stopped
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: ${REDIS_TOKEN:?required}
+      SRH_CONNECTION_STRING: 'redis://mail-zero-valkey:6379'
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:80']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mail-zero-net
+    labels:
+      - "com.lair404.service=mail-zero-upstash-proxy"
+
+networks:
+  mail-zero-net:
+    driver: bridge
+
+volumes:
+  mail-zero-postgres:
+    name: mail-zero-postgres
+  mail-zero-valkey:
+    name: mail-zero-valkey
