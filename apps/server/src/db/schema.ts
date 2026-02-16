@@ -1,13 +1,13 @@
 import {
-  pgTableCreator,
-  text,
-  timestamp,
-  boolean,
-  integer,
-  jsonb,
-  primaryKey,
-  unique,
-  index,
+    boolean,
+    index,
+    integer,
+    jsonb,
+    pgTableCreator,
+    primaryKey,
+    text,
+    timestamp,
+    unique,
 } from 'drizzle-orm/pg-core';
 import { defaultUserSettings } from '../lib/schemas';
 
@@ -128,7 +128,7 @@ export const connection = createTable(
     accessToken: text('access_token'),
     refreshToken: text('refresh_token'),
     scope: text('scope').notNull(),
-    providerId: text('provider_id').$type<'google' | 'microsoft'>().notNull(),
+    providerId: text('provider_id').$type<'google' | 'microsoft' | 'lair404'>().notNull(),
     expiresAt: timestamp('expires_at').notNull(),
     createdAt: timestamp('created_at').notNull(),
     updatedAt: timestamp('updated_at').notNull(),

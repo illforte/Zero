@@ -1,22 +1,26 @@
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '../ui/dialog';
 import { useBilling } from '@/hooks/use-billing';
-import { emailProviders } from '@/lib/constants';
 import { authClient } from '@/lib/auth-client';
-import { Plus, UserPlus } from 'lucide-react';
-import { useLocation } from 'react-router';
-import { m } from '@/paraglide/messages';
-import { motion } from 'motion/react';
-import { Button } from '../ui/button';
+import { emailProviders } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { m } from '@/paraglide/messages';
+import { Plus, UserPlus } from 'lucide-react';
+import { motion } from 'motion/react';
 import { useMemo } from 'react';
+import { useLocation } from 'react-router';
 import { toast } from 'sonner';
+import { Button } from '../ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '../ui/dialog';
+
+import { ChevronLeft } from 'lucide-react';
+import { useState } from 'react';
+import { Lair404SetupForm } from './lair404-setup-form';
 
 export const AddConnectionDialog = ({
   children,
@@ -27,6 +31,7 @@ export const AddConnectionDialog = ({
   className?: string;
   onOpenChange?: (open: boolean) => void;
 }) => {
+  const [isLair404Setup, setIsLair404Setup] = useState(false);
   const { connections, attach } = useBilling();
 
   const canCreateConnection = useMemo(() => {
@@ -50,8 +55,15 @@ export const AddConnectionDialog = ({
     }
   };
 
+  const internalOnOpenChange = (open: boolean) => {
+    if (!open) {
+      setTimeout(() => setIsLair404Setup(false), 200);
+    }
+    onOpenChange?.(open);
+  };
+
   return (
-    <Dialog onOpenChange={onOpenChange}>
+    <Dialog onOpenChange={internalOnOpenChange}>
       <DialogTrigger asChild>
         {children || (
           <Button
@@ -66,79 +78,109 @@ export const AddConnectionDialog = ({
       </DialogTrigger>
       <DialogContent showOverlay={true}>
         <DialogHeader>
-          <DialogTitle>{m['pages.settings.connections.connectEmail']()}</DialogTitle>
-          <DialogDescription>
-            {m['pages.settings.connections.connectEmailDescription']()}
-          </DialogDescription>
-        </DialogHeader>
-        {!canCreateConnection && (
-          <div className="mt-2 flex justify-between gap-2 rounded-lg border border-red-800 bg-red-800/20 p-2">
-            <span className="text-sm">
-              You can only connect 1 email in the free tier.{' '}
-              <span
-                onClick={handleUpgrade}
-                className="hover:bg-subtleWhite hover:text-subtleBlack cursor-pointer underline"
+          <div className="flex items-center gap-2">
+            {isLair404Setup && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setIsLair404Setup(false)}
               >
-                Start 7 day free trial
-              </span>{' '}
-              to connect more.
-            </span>
-            <Button onClick={handleUpgrade} className="text-sm">
-              $20<span className="text-muted-foreground -ml-2 text-xs">/month</span>
-            </Button>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+            )}
+            <DialogTitle>
+              {isLair404Setup ? 'Setup Lair404 Relay' : m['pages.settings.connections.connectEmail']()}
+            </DialogTitle>
           </div>
-        )}
-        <motion.div
-          className="mt-4 grid grid-cols-2 gap-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.3 }}
-        >
-          {emailProviders.map((provider, index) => {
-            const Icon = provider.icon;
-            return (
+          {!isLair404Setup && (
+            <DialogDescription>
+              {m['pages.settings.connections.connectEmailDescription']()}
+            </DialogDescription>
+          )}
+        </DialogHeader>
+
+        {isLair404Setup ? (
+          <div className="mt-4">
+            <Lair404SetupForm onSuccess={() => internalOnOpenChange(false)} />
+          </div>
+        ) : (
+          <>
+            {!canCreateConnection && (
+              <div className="mt-2 flex justify-between gap-2 rounded-lg border border-red-800 bg-red-800/20 p-2">
+                <span className="text-sm">
+                  You can only connect 1 email in the free tier.{' '}
+                  <span
+                    onClick={handleUpgrade}
+                    className="hover:bg-subtleWhite hover:text-subtleBlack cursor-pointer underline"
+                  >
+                    Start 7 day free trial
+                  </span>{' '}
+                  to connect more.
+                </span>
+                <Button onClick={handleUpgrade} className="text-sm">
+                  $20<span className="text-muted-foreground -ml-2 text-xs">/month</span>
+                </Button>
+              </div>
+            )}
+            <motion.div
+              className="mt-4 grid grid-cols-2 gap-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              {emailProviders.map((provider, index) => {
+                const Icon = provider.icon;
+                return (
+                  <motion.div
+                    key={provider.name}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1, duration: 0.3 }}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                  >
+                    <Button
+                      disabled={!canCreateConnection}
+                      variant="outline"
+                      className="h-24 w-full flex-col items-center justify-center gap-2"
+                      onClick={async () => {
+                        if (provider.providerId === 'lair404') {
+                          setIsLair404Setup(true);
+                        } else {
+                          await authClient.linkSocial({
+                            provider: provider.providerId,
+                            callbackURL: `${window.location.origin}${pathname}`,
+                          });
+                        }
+                      }}
+                    >
+                      <Icon className="size-6!" />
+                      <span className="text-xs">{provider.name}</span>
+                    </Button>
+                  </motion.div>
+                );
+              })}
               <motion.div
-                key={provider.name}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1, duration: 0.3 }}
+                transition={{ delay: emailProviders.length * 0.1, duration: 0.3 }}
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
               >
                 <Button
-                  disabled={!canCreateConnection}
                   variant="outline"
-                  className="h-24 w-full flex-col items-center justify-center gap-2"
-                  onClick={async () =>
-                    await authClient.linkSocial({
-                      provider: provider.providerId,
-                      callbackURL: `${window.location.origin}${pathname}`,
-                    })
-                  }
+                  className="h-24 w-full flex-col items-center justify-center gap-2 border-dashed"
                 >
-                  <Icon className="size-6!" />
-                  <span className="text-xs">{provider.name}</span>
+                  <Plus className="h-12 w-12" />
+                  <span className="text-xs">{m['pages.settings.connections.moreComingSoon']()}</span>
                 </Button>
               </motion.div>
-            );
-          })}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: emailProviders.length * 0.1, duration: 0.3 }}
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-          >
-            <Button
-              variant="outline"
-              className="h-24 w-full flex-col items-center justify-center gap-2 border-dashed"
-            >
-              <Plus className="h-12 w-12" />
-              <span className="text-xs">{m['pages.settings.connections.moreComingSoon']()}</span>
-            </Button>
-          </motion.div>
-        </motion.div>
+            </motion.div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
 };
+

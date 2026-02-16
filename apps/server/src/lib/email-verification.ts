@@ -148,7 +148,7 @@ async function validateSPF(domain: string, ip: string): Promise<boolean> {
               if (await checkMechanism(includeMech, includeDomain)) return true;
             }
           }
-        } catch (e) {
+        } catch {
           // Include domain lookup failed
         }
       }
@@ -161,7 +161,7 @@ async function validateSPF(domain: string, ip: string): Promise<boolean> {
     }
     
     return false;
-  } catch (error) {
+  } catch {
     return false;
   }
 }
@@ -215,8 +215,8 @@ async function validateDKIM(rawEmail: string): Promise<boolean> {
     
     const pemKey = `-----BEGIN PUBLIC KEY-----\n${pubKey}\n-----END PUBLIC KEY-----`;
     return verifier.verify(pemKey, signature, 'base64');
-    
-  } catch (error) {
+
+  } catch {
     return false;
   }
 }
@@ -234,8 +234,8 @@ async function validateDMARC(domain: string): Promise<boolean> {
     
     // Require strict policy (quarantine or reject)
     return policy === 'quarantine' || policy === 'reject';
-    
-  } catch (error) {
+
+  } catch {
     return false;
   }
 }
@@ -285,8 +285,8 @@ async function validateBIMI(domain: string): Promise<boolean> {
     console.log(`[BIMI_DEBUG] BIMI validation failed for ${domain}`);
     return false;
     
-  } catch (error) {
-    console.error(`[BIMI_DEBUG] Unexpected error validating BIMI for ${domain}:`, error);
+  } catch (_error) {
+    console.error(`[BIMI_DEBUG] Unexpected error validating BIMI for ${domain}:`, _error);
     return false;
   }
 }
@@ -330,8 +330,8 @@ async function validateBIMIRecord(bimiRecord: string, domain: string): Promise<b
     console.log(`[BIMI_DEBUG] BIMI validation successful for ${domain}`);
     return true;
     
-  } catch (error) {
-    console.log(`[BIMI_DEBUG] Error validating BIMI record for ${domain}:`, error instanceof Error ? error.message : String(error));
+  } catch (_error) {
+    console.log(`[BIMI_DEBUG] Error validating BIMI record for ${domain}:`, _error instanceof Error ? _error.message : String(_error));
     return false;
   }
 }
@@ -361,8 +361,8 @@ async function validateVMC(vmcUrl: string, domain: string): Promise<boolean> {
     console.log(`[BIMI_DEBUG] VMC validation passed for ${domain}`);
     return true;
     
-  } catch (error) {
-    console.log(`[BIMI_DEBUG] VMC validation error for ${domain}:`, error instanceof Error ? error.message : String(error));
+  } catch (_error) {
+    console.log(`[BIMI_DEBUG] VMC validation error for ${domain}:`, _error instanceof Error ? _error.message : String(_error));
     return false;
   }
 }
@@ -392,8 +392,8 @@ async function validateLogo(logoUrl: string, domain: string): Promise<boolean> {
     console.log(`[BIMI_DEBUG] Logo validation passed for ${domain}`);
     return true;
     
-  } catch (error) {
-    console.log(`[BIMI_DEBUG] Logo validation error for ${domain}:`, error instanceof Error ? error.message : String(error));
+  } catch (_error) {
+    console.log(`[BIMI_DEBUG] Logo validation error for ${domain}:`, _error instanceof Error ? _error.message : String(_error));
     return false;
   }
 }
@@ -431,8 +431,8 @@ async function getBIMILogo(domain: string): Promise<string | undefined> {
     }
     
     return undefined;
-    
-  } catch (error) {
+
+  } catch {
     return undefined;
   }
 }
@@ -454,16 +454,16 @@ export async function verify(rawEmail: string): Promise<{isVerified: boolean; lo
     
     // Run validations in parallel
     const [spfValid, dkimValid, dmarcValid, bimiValid] = await Promise.all([
-      senderIP ? validateSPF(domain, senderIP).catch(error => {
+      senderIP ? validateSPF(domain, senderIP).catch(_error => {
         return false;
       }) : Promise.resolve(false),
-      validateDKIM(rawEmail).catch(error => {
+      validateDKIM(rawEmail).catch(_error => {
         return false;
       }),
-      validateDMARC(domain).catch(error => {
+      validateDMARC(domain).catch(_error => {
         return false;
       }),
-      validateBIMI(domain).catch(error => {
+      validateBIMI(domain).catch(_error => {
         return false;
       }),
     ]);
@@ -484,8 +484,8 @@ export async function verify(rawEmail: string): Promise<{isVerified: boolean; lo
     }
 
     return { isVerified: false };
-  } catch (error) {
-    console.error('Email verification error:', error);
+  } catch (_error) {
+    console.error('Email verification error:', _error);
     return { isVerified: false };
   }
 }

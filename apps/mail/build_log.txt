@@ -1,0 +1,551 @@
+
+> @zero/mail@0.1.0 build /Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail
+> react-router build
+
+
+  [38;2;225;80;80;1m×[0m [38;2;225;80;80;1mExpected corresponding JSX closing tag for 'nav'.[0m
+     ╭─[[38;2;92;157;255;1mcomponents/navigation.tsx[0m:114:10]
+ [2m113[0m │       <header className="fixed left-[50%] z-50 hidden w-full max-w-4xl translate-x-[-50%] items-center justify-center px-4 pt-6 lg:flex">
+ [2m114[0m │         <nav className="border-input/50 flex w-full max-w-4xl items-center justify-between gap-2 rounded-xl border-t bg-[#1E1E1E] p-3 px-6">
+     · [38;2;246;87;248m         ───[0m
+ [2m115[0m │             <Link to="/" className="relative bottom-1 cursor-pointer flex items-center gap-2">
+ [2m116[0m │               <img src="white-icon.svg" alt="Lair404 Mail" width={22} height={22} />
+ [2m117[0m │               <span className="text-white font-bold text-sm tracking-tight">
+ [2m118[0m │                 Lair404 <span className="text-muted-foreground font-normal text-[10px] ml-1">Fork</span>
+ [2m119[0m │               </span>
+ [2m120[0m │             </Link>
+ [2m121[0m │             <NavigationMenu>
+ [2m122[0m │               <NavigationMenuList className="gap-1">
+ [2m123[0m │                 <NavigationMenuItem>
+ [2m124[0m │                   <NavigationMenuTrigger className="bg-transparent text-white cursor-pointer">
+ [2m125[0m │                     Company
+ [2m126[0m │                   </NavigationMenuTrigger>
+ [2m127[0m │                   <NavigationMenuContent>
+ [2m128[0m │                     <ul className="grid w-[300px] gap-3 p-4 md:w-[300px] md:grid-cols-1 lg:w-[400px]">
+ [2m129[0m │                       {aboutLinks.map((link) => (
+ [2m130[0m │                         <ListItem key={link.title} title={link.title} href={link.href}>
+ [2m131[0m │                           {link.description}
+ [2m132[0m │                         </ListItem>
+ [2m133[0m │                       ))}
+ [2m134[0m │                     </ul>
+ [2m135[0m │                   </NavigationMenuContent>
+ [2m136[0m │                 </NavigationMenuItem>
+ [2m137[0m │                 <NavigationMenuItem>
+ [2m138[0m │                   <NavigationMenuTrigger className="bg-transparent text-white cursor-pointer">
+ [2m139[0m │                     Resources
+ [2m140[0m │                   </NavigationMenuTrigger>
+ [2m141[0m │                   <NavigationMenuContent>
+ [2m142[0m │                     <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
+ [2m143[0m │                       {resources.map((resource) => (
+ [2m144[0m │                         <ListItem
+ [2m145[0m │                           key={resource.title}
+ [2m146[0m │                           title={resource.title}
+ [2m147[0m │                           href={resource.href}
+ [2m148[0m │                           platform={resource.platform}
+ [2m149[0m │                         >
+ [2m150[0m │                           {resource.description}
+ [2m151[0m │                         </ListItem>
+ [2m152[0m │                       ))}
+ [2m153[0m │                     </ul>
+ [2m154[0m │                   </NavigationMenuContent>
+ [2m155[0m │                 </NavigationMenuItem>
+ [2m156[0m │                 <NavigationMenuItem className="bg-transparent text-white">
+ [2m157[0m │                   <Button asChild variant="ghost" className="h-9 bg-transparent cursor-pointer">
+ [2m158[0m │                     <a href="/pricing">Pricing</a>
+ [2m159[0m │                   </Button>
+ [2m160[0m │                 </NavigationMenuItem>
+ [2m161[0m │                 <NavigationMenuItem className="bg-transparent text-white cursor-pointer">
+ [2m162[0m │                   <a href="/privacy">
+ [2m163[0m │                     <Button variant="ghost" className="ml-1 h-9 bg-transparent">
+ [2m164[0m │                       Privacy
+ [2m165[0m │                     </Button>
+ [2m166[0m │                   </a>
+ [2m167[0m │                 </NavigationMenuItem>
+ [2m168[0m │               </NavigationMenuList>
+ [2m169[0m │             </NavigationMenu>
+ [2m170[0m │           </div>
+     · [38;2;30;201;212m            ───[0m
+ [2m171[0m │           <div className="flex gap-2">
+     ╰────
+
+  [38;2;225;80;80;1m×[0m [38;2;225;80;80;1mExpected corresponding JSX closing tag for 'header'.[0m
+     ╭─[[38;2;92;157;255;1mcomponents/navigation.tsx[0m:113:8]
+ [2m112[0m │       {/* Desktop Navigation - Hidden on mobile */}
+ [2m113[0m │       <header className="fixed left-[50%] z-50 hidden w-full max-w-4xl translate-x-[-50%] items-center justify-center px-4 pt-6 lg:flex">
+     · [38;2;246;87;248m       ──────[0m
+ [2m114[0m │         <nav className="border-input/50 flex w-full max-w-4xl items-center justify-between gap-2 rounded-xl border-t bg-[#1E1E1E] p-3 px-6">
+ [2m115[0m │             <Link to="/" className="relative bottom-1 cursor-pointer flex items-center gap-2">
+ [2m116[0m │               <img src="white-icon.svg" alt="Lair404 Mail" width={22} height={22} />
+ [2m117[0m │               <span className="text-white font-bold text-sm tracking-tight">
+ [2m118[0m │                 Lair404 <span className="text-muted-foreground font-normal text-[10px] ml-1">Fork</span>
+ [2m119[0m │               </span>
+ [2m120[0m │             </Link>
+ [2m121[0m │             <NavigationMenu>
+ [2m122[0m │               <NavigationMenuList className="gap-1">
+ [2m123[0m │                 <NavigationMenuItem>
+ [2m124[0m │                   <NavigationMenuTrigger className="bg-transparent text-white cursor-pointer">
+ [2m125[0m │                     Company
+ [2m126[0m │                   </NavigationMenuTrigger>
+ [2m127[0m │                   <NavigationMenuContent>
+ [2m128[0m │                     <ul className="grid w-[300px] gap-3 p-4 md:w-[300px] md:grid-cols-1 lg:w-[400px]">
+ [2m129[0m │                       {aboutLinks.map((link) => (
+ [2m130[0m │                         <ListItem key={link.title} title={link.title} href={link.href}>
+ [2m131[0m │                           {link.description}
+ [2m132[0m │                         </ListItem>
+ [2m133[0m │                       ))}
+ [2m134[0m │                     </ul>
+ [2m135[0m │                   </NavigationMenuContent>
+ [2m136[0m │                 </NavigationMenuItem>
+ [2m137[0m │                 <NavigationMenuItem>
+ [2m138[0m │                   <NavigationMenuTrigger className="bg-transparent text-white cursor-pointer">
+ [2m139[0m │                     Resources
+ [2m140[0m │                   </NavigationMenuTrigger>
+ [2m141[0m │                   <NavigationMenuContent>
+ [2m142[0m │                     <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
+ [2m143[0m │                       {resources.map((resource) => (
+ [2m144[0m │                         <ListItem
+ [2m145[0m │                           key={resource.title}
+ [2m146[0m │                           title={resource.title}
+ [2m147[0m │                           href={resource.href}
+ [2m148[0m │                           platform={resource.platform}
+ [2m149[0m │                         >
+ [2m150[0m │                           {resource.description}
+ [2m151[0m │                         </ListItem>
+ [2m152[0m │                       ))}
+ [2m153[0m │                     </ul>
+ [2m154[0m │                   </NavigationMenuContent>
+ [2m155[0m │                 </NavigationMenuItem>
+ [2m156[0m │                 <NavigationMenuItem className="bg-transparent text-white">
+ [2m157[0m │                   <Button asChild variant="ghost" className="h-9 bg-transparent cursor-pointer">
+ [2m158[0m │                     <a href="/pricing">Pricing</a>
+ [2m159[0m │                   </Button>
+ [2m160[0m │                 </NavigationMenuItem>
+ [2m161[0m │                 <NavigationMenuItem className="bg-transparent text-white cursor-pointer">
+ [2m162[0m │                   <a href="/privacy">
+ [2m163[0m │                     <Button variant="ghost" className="ml-1 h-9 bg-transparent">
+ [2m164[0m │                       Privacy
+ [2m165[0m │                     </Button>
+ [2m166[0m │                   </a>
+ [2m167[0m │                 </NavigationMenuItem>
+ [2m168[0m │               </NavigationMenuList>
+ [2m169[0m │             </NavigationMenu>
+ [2m170[0m │           </div>
+ [2m171[0m │           <div className="flex gap-2">
+ [2m172[0m │             <a
+ [2m173[0m │               href="https://github.com/Mail-0/Zero"
+ [2m174[0m │               target="_blank"
+ [2m175[0m │               rel="noopener noreferrer"
+ [2m176[0m │               className={cn(
+ [2m177[0m │                 'group inline-flex h-8 items-center gap-2 rounded-lg bg-black px-2 text-sm text-white transition-colors hover:bg-black/90',
+ [2m178[0m │               )}
+ [2m179[0m │             >
+ [2m180[0m │               <div className="flex items-center text-white">
+ [2m181[0m │                 <GitHub className="mr-1 size-4 fill-white" />
+ [2m182[0m │                 <span className="ml-1 lg:hidden">Star</span>
+ [2m183[0m │                 <span className="ml-1 hidden lg:inline">GitHub</span>
+ [2m184[0m │               </div>
+ [2m185[0m │               <div className="flex items-center gap-1 text-sm">
+ [2m186[0m │                 <Star className="relative top-px size-4 fill-gray-400 duration-300 group-hover:fill-yellow-400 group-hover:drop-shadow-[0_0_8px_rgba(250,204,21,0.6)]" />
+ [2m187[0m │                 <AnimatedNumber value={stars} className="font-medium text-white" />
+ [2m188[0m │               </div>
+ [2m189[0m │             </a>
+ [2m190[0m │             <Button
+ [2m191[0m │               className="h-8 bg-white text-black hover:bg-white hover:text-black cursor-pointer"
+ [2m192[0m │               onClick={() => {
+ [2m193[0m │                 if (session) {
+ [2m194[0m │                   navigate('/mail/inbox');
+ [2m195[0m │                 } else {
+ [2m196[0m │                   toast.promise(
+ [2m197[0m │                     signIn.social({
+ [2m198[0m │                       provider: 'google',
+ [2m199[0m │                       callbackURL: `${window.location.origin}/mail`,
+ [2m200[0m │                     }),
+ [2m201[0m │                     {
+ [2m202[0m │                       error: 'Login redirect failed',
+ [2m203[0m │                     },
+ [2m204[0m │                   );
+ [2m205[0m │                 }
+ [2m206[0m │               }}
+ [2m207[0m │             >
+ [2m208[0m │               Get Started
+ [2m209[0m │             </Button>
+ [2m210[0m │           </div>
+ [2m211[0m │         </nav>
+     · [38;2;30;201;212m          ───[0m
+ [2m212[0m │       </header>
+     ╰────
+
+  [38;2;225;80;80;1m×[0m [38;2;225;80;80;1mExpected `>` but found `Identifier`[0m
+     ╭─[[38;2;92;157;255;1mcomponents/navigation.tsx[0m:212:9]
+ [2m211[0m │         </nav>
+ [2m212[0m │       </header>
+     · [38;2;246;87;248m        ───┬──[0m
+     ·            [38;2;246;87;248m╰── [38;2;246;87;248m`>` expected[0m[0m
+ [2m213[0m │ 
+     ╰────
+
+Found 0 warnings and 3 errors.
+Finished in 113ms on 254 files using 10 threads.
+
+[33mOxlint finished with exit code: 1[0m
+✔ [paraglide-js] Compilation complete (message-modules)
+Using Vite Environment API (experimental)
+vite v6.3.5 building for production...
+✔ [paraglide-js] Compilation complete (message-modules)
+transforming...
+
+  [38;2;225;80;80;1m×[0m [38;2;225;80;80;1mExpected corresponding JSX closing tag for 'nav'.[0m
+     ╭─[[38;2;92;157;255;1mcomponents/navigation.tsx[0m:114:10]
+ [2m113[0m │       <header className="fixed left-[50%] z-50 hidden w-full max-w-4xl translate-x-[-50%] items-center justify-center px-4 pt-6 lg:flex">
+ [2m114[0m │         <nav className="border-input/50 flex w-full max-w-4xl items-center justify-between gap-2 rounded-xl border-t bg-[#1E1E1E] p-3 px-6">
+     · [38;2;246;87;248m         ───[0m
+ [2m115[0m │             <Link to="/" className="relative bottom-1 cursor-pointer flex items-center gap-2">
+ [2m116[0m │               <img src="white-icon.svg" alt="Lair404 Mail" width={22} height={22} />
+ [2m117[0m │               <span className="text-white font-bold text-sm tracking-tight">
+ [2m118[0m │                 Lair404 <span className="text-muted-foreground font-normal text-[10px] ml-1">Fork</span>
+ [2m119[0m │               </span>
+ [2m120[0m │             </Link>
+ [2m121[0m │             <NavigationMenu>
+ [2m122[0m │               <NavigationMenuList className="gap-1">
+ [2m123[0m │                 <NavigationMenuItem>
+ [2m124[0m │                   <NavigationMenuTrigger className="bg-transparent text-white cursor-pointer">
+ [2m125[0m │                     Company
+ [2m126[0m │                   </NavigationMenuTrigger>
+ [2m127[0m │                   <NavigationMenuContent>
+ [2m128[0m │                     <ul className="grid w-[300px] gap-3 p-4 md:w-[300px] md:grid-cols-1 lg:w-[400px]">
+ [2m129[0m │                       {aboutLinks.map((link) => (
+ [2m130[0m │                         <ListItem key={link.title} title={link.title} href={link.href}>
+ [2m131[0m │                           {link.description}
+ [2m132[0m │                         </ListItem>
+ [2m133[0m │                       ))}
+ [2m134[0m │                     </ul>
+ [2m135[0m │                   </NavigationMenuContent>
+ [2m136[0m │                 </NavigationMenuItem>
+ [2m137[0m │                 <NavigationMenuItem>
+ [2m138[0m │                   <NavigationMenuTrigger className="bg-transparent text-white cursor-pointer">
+ [2m139[0m │                     Resources
+ [2m140[0m │                   </NavigationMenuTrigger>
+ [2m141[0m │                   <NavigationMenuContent>
+ [2m142[0m │                     <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
+ [2m143[0m │                       {resources.map((resource) => (
+ [2m144[0m │                         <ListItem
+ [2m145[0m │                           key={resource.title}
+ [2m146[0m │                           title={resource.title}
+ [2m147[0m │                           href={resource.href}
+ [2m148[0m │                           platform={resource.platform}
+ [2m149[0m │                         >
+ [2m150[0m │                           {resource.description}
+ [2m151[0m │                         </ListItem>
+ [2m152[0m │                       ))}
+ [2m153[0m │                     </ul>
+ [2m154[0m │                   </NavigationMenuContent>
+ [2m155[0m │                 </NavigationMenuItem>
+ [2m156[0m │                 <NavigationMenuItem className="bg-transparent text-white">
+ [2m157[0m │                   <Button asChild variant="ghost" className="h-9 bg-transparent cursor-pointer">
+ [2m158[0m │                     <a href="/pricing">Pricing</a>
+ [2m159[0m │                   </Button>
+ [2m160[0m │                 </NavigationMenuItem>
+ [2m161[0m │                 <NavigationMenuItem className="bg-transparent text-white cursor-pointer">
+ [2m162[0m │                   <a href="/privacy">
+ [2m163[0m │                     <Button variant="ghost" className="ml-1 h-9 bg-transparent">
+ [2m164[0m │                       Privacy
+ [2m165[0m │                     </Button>
+ [2m166[0m │                   </a>
+ [2m167[0m │                 </NavigationMenuItem>
+ [2m168[0m │               </NavigationMenuList>
+ [2m169[0m │             </NavigationMenu>
+ [2m170[0m │           </div>
+     · [38;2;30;201;212m            ───[0m
+ [2m171[0m │           <div className="flex gap-2">
+     ╰────
+
+  [38;2;225;80;80;1m×[0m [38;2;225;80;80;1mExpected corresponding JSX closing tag for 'header'.[0m
+     ╭─[[38;2;92;157;255;1mcomponents/navigation.tsx[0m:113:8]
+ [2m112[0m │       {/* Desktop Navigation - Hidden on mobile */}
+ [2m113[0m │       <header className="fixed left-[50%] z-50 hidden w-full max-w-4xl translate-x-[-50%] items-center justify-center px-4 pt-6 lg:flex">
+     · [38;2;246;87;248m       ──────[0m
+ [2m114[0m │         <nav className="border-input/50 flex w-full max-w-4xl items-center justify-between gap-2 rounded-xl border-t bg-[#1E1E1E] p-3 px-6">
+ [2m115[0m │             <Link to="/" className="relative bottom-1 cursor-pointer flex items-center gap-2">
+ [2m116[0m │               <img src="white-icon.svg" alt="Lair404 Mail" width={22} height={22} />
+ [2m117[0m │               <span className="text-white font-bold text-sm tracking-tight">
+ [2m118[0m │                 Lair404 <span className="text-muted-foreground font-normal text-[10px] ml-1">Fork</span>
+ [2m119[0m │               </span>
+ [2m120[0m │             </Link>
+ [2m121[0m │             <NavigationMenu>
+ [2m122[0m │               <NavigationMenuList className="gap-1">
+ [2m123[0m │                 <NavigationMenuItem>
+ [2m124[0m │                   <NavigationMenuTrigger className="bg-transparent text-white cursor-pointer">
+ [2m125[0m │                     Company
+ [2m126[0m │                   </NavigationMenuTrigger>
+ [2m127[0m │                   <NavigationMenuContent>
+ [2m128[0m │                     <ul className="grid w-[300px] gap-3 p-4 md:w-[300px] md:grid-cols-1 lg:w-[400px]">
+ [2m129[0m │                       {aboutLinks.map((link) => (
+ [2m130[0m │                         <ListItem key={link.title} title={link.title} href={link.href}>
+ [2m131[0m │                           {link.description}
+ [2m132[0m │                         </ListItem>
+ [2m133[0m │                       ))}
+ [2m134[0m │                     </ul>
+ [2m135[0m │                   </NavigationMenuContent>
+ [2m136[0m │                 </NavigationMenuItem>
+ [2m137[0m │                 <NavigationMenuItem>
+ [2m138[0m │                   <NavigationMenuTrigger className="bg-transparent text-white cursor-pointer">
+ [2m139[0m │                     Resources
+ [2m140[0m │                   </NavigationMenuTrigger>
+ [2m141[0m │                   <NavigationMenuContent>
+ [2m142[0m │                     <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
+ [2m143[0m │                       {resources.map((resource) => (
+ [2m144[0m │                         <ListItem
+ [2m145[0m │                           key={resource.title}
+ [2m146[0m │                           title={resource.title}
+ [2m147[0m │                           href={resource.href}
+ [2m148[0m │                           platform={resource.platform}
+ [2m149[0m │                         >
+ [2m150[0m │                           {resource.description}
+ [2m151[0m │                         </ListItem>
+ [2m152[0m │                       ))}
+ [2m153[0m │                     </ul>
+ [2m154[0m │                   </NavigationMenuContent>
+ [2m155[0m │                 </NavigationMenuItem>
+ [2m156[0m │                 <NavigationMenuItem className="bg-transparent text-white">
+ [2m157[0m │                   <Button asChild variant="ghost" className="h-9 bg-transparent cursor-pointer">
+ [2m158[0m │                     <a href="/pricing">Pricing</a>
+ [2m159[0m │                   </Button>
+ [2m160[0m │                 </NavigationMenuItem>
+ [2m161[0m │                 <NavigationMenuItem className="bg-transparent text-white cursor-pointer">
+ [2m162[0m │                   <a href="/privacy">
+ [2m163[0m │                     <Button variant="ghost" className="ml-1 h-9 bg-transparent">
+ [2m164[0m │                       Privacy
+ [2m165[0m │                     </Button>
+ [2m166[0m │                   </a>
+ [2m167[0m │                 </NavigationMenuItem>
+ [2m168[0m │               </NavigationMenuList>
+ [2m169[0m │             </NavigationMenu>
+ [2m170[0m │           </div>
+ [2m171[0m │           <div className="flex gap-2">
+ [2m172[0m │             <a
+ [2m173[0m │               href="https://github.com/Mail-0/Zero"
+ [2m174[0m │               target="_blank"
+ [2m175[0m │               rel="noopener noreferrer"
+ [2m176[0m │               className={cn(
+ [2m177[0m │                 'group inline-flex h-8 items-center gap-2 rounded-lg bg-black px-2 text-sm text-white transition-colors hover:bg-black/90',
+ [2m178[0m │               )}
+ [2m179[0m │             >
+ [2m180[0m │               <div className="flex items-center text-white">
+ [2m181[0m │                 <GitHub className="mr-1 size-4 fill-white" />
+ [2m182[0m │                 <span className="ml-1 lg:hidden">Star</span>
+ [2m183[0m │                 <span className="ml-1 hidden lg:inline">GitHub</span>
+ [2m184[0m │               </div>
+ [2m185[0m │               <div className="flex items-center gap-1 text-sm">
+ [2m186[0m │                 <Star className="relative top-px size-4 fill-gray-400 duration-300 group-hover:fill-yellow-400 group-hover:drop-shadow-[0_0_8px_rgba(250,204,21,0.6)]" />
+ [2m187[0m │                 <AnimatedNumber value={stars} className="font-medium text-white" />
+ [2m188[0m │               </div>
+ [2m189[0m │             </a>
+ [2m190[0m │             <Button
+ [2m191[0m │               className="h-8 bg-white text-black hover:bg-white hover:text-black cursor-pointer"
+ [2m192[0m │               onClick={() => {
+ [2m193[0m │                 if (session) {
+ [2m194[0m │                   navigate('/mail/inbox');
+ [2m195[0m │                 } else {
+ [2m196[0m │                   toast.promise(
+ [2m197[0m │                     signIn.social({
+ [2m198[0m │                       provider: 'google',
+ [2m199[0m │                       callbackURL: `${window.location.origin}/mail`,
+ [2m200[0m │                     }),
+ [2m201[0m │                     {
+ [2m202[0m │                       error: 'Login redirect failed',
+ [2m203[0m │                     },
+ [2m204[0m │                   );
+ [2m205[0m │                 }
+ [2m206[0m │               }}
+ [2m207[0m │             >
+ [2m208[0m │               Get Started
+ [2m209[0m │             </Button>
+ [2m210[0m │           </div>
+ [2m211[0m │         </nav>
+     · [38;2;30;201;212m          ───[0m
+ [2m212[0m │       </header>
+     ╰────
+
+  [38;2;225;80;80;1m×[0m [38;2;225;80;80;1mExpected `>` but found `Identifier`[0m
+     ╭─[[38;2;92;157;255;1mcomponents/navigation.tsx[0m:212:9]
+ [2m211[0m │         </nav>
+ [2m212[0m │       </header>
+     · [38;2;246;87;248m        ───┬──[0m
+     ·            [38;2;246;87;248m╰── [38;2;246;87;248m`>` expected[0m[0m
+ [2m213[0m │ 
+     ╰────
+
+Found 0 warnings and 3 errors.
+Finished in 164ms on 254 files using 10 threads.
+
+[33mOxlint finished with exit code: 1[0m
+[BABEL] Note: The code generator has deoptimised the styling of /Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/react-dom@19.1.0_react@19.1.0/node_modules/react-dom/cjs/react-dom-client.production.js as it exceeds the max of 500KB.
+✓ 89 modules transformed.
+✗ Build failed in 7.25s
+[babel-plugin] /Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/components/navigation.tsx: Expected corresponding JSX closing tag for <nav>. (170:10)
+
+  168 |               </NavigationMenuList>
+  169 |             </NavigationMenu>
+> 170 |           </div>
+      |           ^
+  171 |           <div className="flex gap-2">
+  172 |             <a
+  173 |               href="https://github.com/Mail-0/Zero"
+file: /Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/components/navigation.tsx:170:10
+    at toParseError (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parse-error.ts:95:45)
+    at TypeScriptParserMixin.raise (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/tokenizer/index.ts:1503:19)
+    at TypeScriptParserMixin.jsxParseElementAt (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/plugins/jsx/index.ts:527:18)
+    at TypeScriptParserMixin.jsxParseElementAt (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/plugins/jsx/index.ts:483:34)
+    at TypeScriptParserMixin.jsxParseElementAt (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/plugins/jsx/index.ts:483:34)
+    at TypeScriptParserMixin.jsxParseElement (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/plugins/jsx/index.ts:559:19)
+    at TypeScriptParserMixin.parseExprAtom (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/plugins/jsx/index.ts:573:21)
+    at TypeScriptParserMixin.parseExprSubscripts (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:734:23)
+    at TypeScriptParserMixin.parseUpdate (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:713:21)
+    at TypeScriptParserMixin.parseMaybeUnary (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:675:23)
+    at TypeScriptParserMixin.parseMaybeUnary (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/plugins/typescript/index.ts:3853:20)
+    at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:409:14)
+    at TypeScriptParserMixin.parseExprOps (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:421:23)
+    at TypeScriptParserMixin.parseMaybeConditional (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:376:23)
+    at TypeScriptParserMixin.parseMaybeAssign (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:301:21)
+    at fn (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/plugins/typescript/index.ts:3706:23)
+    at TypeScriptParserMixin.tryParse (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/util.ts:174:20)
+    at TypeScriptParserMixin.parseMaybeAssign (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/plugins/typescript/index.ts:3705:20)
+    at callback (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:257:12)
+    at TypeScriptParserMixin.allowInAnd (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:3192:12)
+    at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:256:17)
+    at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:3306:17)
+    at TypeScriptParserMixin.parseParenAndDistinguishExpression (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:1813:16)
+    at TypeScriptParserMixin.parseExprAtom (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:1162:21)
+    at TypeScriptParserMixin.parseExprAtom (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/plugins/jsx/index.ts:583:22)
+    at TypeScriptParserMixin.parseExprSubscripts (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:734:23)
+    at TypeScriptParserMixin.parseUpdate (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:713:21)
+    at TypeScriptParserMixin.parseMaybeUnary (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:675:23)
+    at TypeScriptParserMixin.parseMaybeUnary (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/plugins/typescript/index.ts:3853:20)
+    at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:409:14)
+    at TypeScriptParserMixin.parseExprOps (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:421:23)
+    at TypeScriptParserMixin.parseMaybeConditional (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:376:23)
+    at TypeScriptParserMixin.parseMaybeAssign (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:301:21)
+    at TypeScriptParserMixin.parseMaybeAssign (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/plugins/typescript/index.ts:3725:22)
+    at TypeScriptParserMixin.parseExpressionBase (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:226:23)
+    at callback (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:217:39)
+    at TypeScriptParserMixin.allowInAnd (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:3187:16)
+    at TypeScriptParserMixin.parseExpression (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:217:17)
+    at TypeScriptParserMixin.parseReturnStatement (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/statement.ts:1110:28)
+    at TypeScriptParserMixin.parseStatementContent (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/statement.ts:538:21)
+    at TypeScriptParserMixin.parseStatementContent (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/plugins/typescript/index.ts:3183:20)
+    at TypeScriptParserMixin.parseStatementLike (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/statement.ts:477:17)
+    at TypeScriptParserMixin.parseStatementListItem (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/statement.ts:426:17)
+    at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/statement.ts:1439:16)
+    at TypeScriptParserMixin.parseBlockBody (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/statement.ts:1412:10)
+    at TypeScriptParserMixin.parseBlock (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/statement.ts:1380:10)
+    at TypeScriptParserMixin.parseFunctionBody (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:2616:24)
+    at TypeScriptParserMixin.parseFunctionBodyAndFinish (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/expression.ts:2585:10)
+    at TypeScriptParserMixin.parseFunctionBodyAndFinish (/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/plugins/typescript/index.ts:2645:20)
+    at /Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@babel+parser@7.28.0/node_modules/@babel/parser/src/parser/statement.ts:1690:12 {
+  code: 'PLUGIN_ERROR',
+  reasonCode: 'MissingClosingTagElement',
+  loc: Position { line: 170, column: 10, index: 6115 },
+  pos: 6115,
+  syntaxPlugin: 'jsx',
+  pluginCode: 'BABEL_PARSE_ERROR',
+  plugin: 'babel-plugin',
+  hook: 'transform',
+  id: '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/components/navigation.tsx',
+  watchFiles: [
+    '/Users/florian.scheugenpflug/Library/Application Support/lix/account.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/project.inlang/settings.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/project.inlang/project_id',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/project.inlang/.gitignore',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/project.inlang/cache/plugins/2sy648wh9sugi',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/project.inlang/cache/plugins/ygx0uiahq6uw',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/messages/en.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/messages/ar.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/messages/ca.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/messages/cs.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/messages/de.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/messages/es.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/messages/fr.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/messages/hi.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/messages/nl.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/messages/ja.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/messages/ko.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/messages/lv.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/messages/pl.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/messages/pt.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/messages/ru.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/messages/tr.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/messages/hu.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/messages/fa.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/messages/vi.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/home/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/mailto-handler.ts',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/root.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(full-width)/terms.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(full-width)/about.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(full-width)/layout.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(full-width)/pricing.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(full-width)/privacy.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(full-width)/contributors.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(full-width)/hr.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(auth)/login/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/layout.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/developer/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/mail/layout.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/mail/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/mail/compose/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/mail/create/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/mail/under-construction/[path]/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/mail/[folder]/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/settings/layout.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/settings/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/settings/appearance/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/settings/connections/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/settings/general/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/settings/danger-zone/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/settings/labels/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/settings/privacy/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/settings/notifications/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/entry.client.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/settings/categories/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/settings/security/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/settings/shortcuts/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/(routes)/settings/[...settings]/page.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/meta-files/not-found.ts',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/package.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/app/instrument.ts',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/react-dom@19.1.0_react@19.1.0/node_modules/react-dom/client.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/react@19.1.0/node_modules/react/index.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/react@19.1.0/node_modules/react/jsx-runtime.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/react-router@7.6.3_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/react-router/dist/development/dom-export.mjs',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@sentry+react@9.40.0_react@19.1.0/node_modules/@sentry/react/build/esm/index.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/react@19.1.0/node_modules/react/cjs/react-jsx-runtime.production.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/react@19.1.0/node_modules/react/cjs/react.production.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/react-dom@19.1.0_react@19.1.0/node_modules/react-dom/index.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/react-dom@19.1.0_react@19.1.0/node_modules/react-dom/cjs/react-dom-client.production.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/react-router@7.6.3_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/react-router/dist/development/chunk-QMGIS6GS.mjs',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@sentry+react@9.40.0_react@19.1.0/node_modules/@sentry/react/build/esm/error.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@sentry+react@9.40.0_react@19.1.0/node_modules/@sentry/react/build/esm/sdk.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@sentry+react@9.40.0_react@19.1.0/node_modules/@sentry/react/build/esm/profiler.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@sentry+react@9.40.0_react@19.1.0/node_modules/@sentry/react/build/esm/errorboundary.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@sentry+react@9.40.0_react@19.1.0/node_modules/@sentry/react/build/esm/reactrouter.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@sentry+react@9.40.0_react@19.1.0/node_modules/@sentry/react/build/esm/tanstackrouter.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@sentry+react@9.40.0_react@19.1.0/node_modules/@sentry/react/build/esm/redux.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@sentry+browser@9.40.0/node_modules/@sentry/browser/build/npm/esm/index.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@sentry+react@9.40.0_react@19.1.0/node_modules/@sentry/react/build/esm/reactrouterv6.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@sentry+react@9.40.0_react@19.1.0/node_modules/@sentry/react/build/esm/reactrouterv3.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@sentry+react@9.40.0_react@19.1.0/node_modules/@sentry/react/build/esm/reactrouterv7.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/server/package.json',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/scheduler@0.26.0/node_modules/scheduler/index.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/react-dom@19.1.0_react@19.1.0/node_modules/react-dom/cjs/react-dom.production.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@sentry+react@9.40.0_react@19.1.0/node_modules/@sentry/react/build/esm/constants.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/components/onboarding.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@sentry+react@9.40.0_react@19.1.0/node_modules/@sentry/react/build/esm/hoist-non-react-statics.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/node_modules/.pnpm/@sentry+core@9.40.0/node_modules/@sentry/core/build/esm/index.js',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/components/providers/hotkey-provider-wrapper.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/components/ui/app-sidebar.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/components/context/command-palette-context.tsx',
+    '/Users/florian.scheugenpflug/Projekte/mail-zero-fork/apps/mail/components/navigation.tsx'
+  ]
+}
+ ELIFECYCLE  Command failed with exit code 1.

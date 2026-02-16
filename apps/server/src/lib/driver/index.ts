@@ -1,10 +1,12 @@
-import type { MailManager, ManagerConfig } from './types';
-import { OutlookMailManager } from './microsoft';
 import { GoogleMailManager } from './google';
+import { Lair404MailManager } from './lair404';
+import { OutlookMailManager } from './microsoft';
+import type { MailManager, ManagerConfig } from './types';
 
 const supportedProviders = {
   google: GoogleMailManager,
   microsoft: OutlookMailManager,
+  lair404: Lair404MailManager,
 };
 
 export const createDriver = (

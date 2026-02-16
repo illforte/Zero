@@ -1,23 +1,23 @@
-import {
-  NavigationMenu,
-  NavigationMenuItem,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-  NavigationMenuContent,
-  ListItem,
-} from '@/components/ui/navigation-menu';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { GitHub, Twitter, Discord, LinkedIn, Star } from './icons/icons';
 import { AnimatedNumber } from '@/components/ui/animated-number';
-import { signIn, useSession } from '@/lib/auth-client';
-import { Separator } from '@/components/ui/separator';
-import { useQuery } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router';
 import { Button } from '@/components/ui/button';
-import { useState, useEffect } from 'react';
-import { Menu } from 'lucide-react';
+import {
+    ListItem,
+    NavigationMenu,
+    NavigationMenuContent,
+    NavigationMenuItem,
+    NavigationMenuList,
+    NavigationMenuTrigger,
+} from '@/components/ui/navigation-menu';
+import { Separator } from '@/components/ui/separator';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { signIn, useSession } from '@/lib/auth-client';
 import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
+import { Menu } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router';
 import { toast } from 'sonner';
+import { Discord, GitHub, LinkedIn, Star, Twitter } from './icons/icons';
 
 const resources = [
   {
@@ -167,7 +167,6 @@ export function Navigation() {
                 </NavigationMenuItem>
               </NavigationMenuList>
             </NavigationMenu>
-          </div>
           <div className="flex gap-2">
             <a
               href="https://github.com/Mail-0/Zero"

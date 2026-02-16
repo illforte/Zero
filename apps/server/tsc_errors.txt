@@ -1,0 +1,105 @@
+src/lib/analyze/interests.ts(44,12): error TS2339: Property 'OPENAI_API_KEY' does not exist on type 'Env'.
+src/lib/analyze/interests.ts(94,25): error TS2339: Property 'OPENAI_MODEL' does not exist on type 'Env'.
+src/lib/bulk-delete.ts(26,34): error TS2339: Property 'NODE_ENV' does not exist on type 'Env'.
+src/lib/bulk-delete.ts(29,45): error TS2339: Property 'gmail_processing_threads' does not exist on type 'Env'.
+src/lib/bulk-delete.ts(37,25): error TS2339: Property 'CLOUDFLARE_ACCOUNT_ID' does not exist on type 'Env'.
+src/lib/bulk-delete.ts(46,21): error TS2339: Property 'CLOUDFLARE_API_TOKEN' does not exist on type 'Env'.
+src/lib/driver/index.ts(18,3): error TS2322: Type 'GoogleMailManager | OutlookMailManager | Lair404MailManager' is not assignable to type 'MailManager'.
+  Type 'OutlookMailManager' is not assignable to type 'MailManager'.
+    The types returned by 'getDraft(...)' are incompatible between these types.
+      Type 'Promise<{ id: string; to: string[]; cc: string[]; bcc: string[]; subject: string; content: string; rawMessage: Message; }>' is not assignable to type 'Promise<ParsedDraft>'.
+        Type '{ id: string; to: string[]; cc: string[]; bcc: string[]; subject: string; content: string; rawMessage: Message; }' is not assignable to type 'ParsedDraft'.
+          Types of property 'rawMessage' are incompatible.
+            Type 'Message' has no properties in common with type '{ internalDate?: string | null | undefined; }'.
+src/lib/driver/lair404-verify.ts(1,26): error TS2307: Cannot find module 'imapflow' or its corresponding type declarations.
+src/lib/driver/lair404-verify.ts(2,29): error TS2307: Cannot find module 'nodemailer' or its corresponding type declarations.
+src/lib/driver/lair404.ts(3,29): error TS2307: Cannot find module 'nodemailer' or its corresponding type declarations.
+src/lib/driver/microsoft.ts(543,10): error TS2416: Property 'getDraft' in type 'OutlookMailManager' is not assignable to the same property in base type 'MailManager'.
+  Type '(draftId: string) => Promise<{ id: string; to: string[]; cc: string[]; bcc: string[]; subject: string; content: string; rawMessage: Message; }>' is not assignable to type '(id: string) => Promise<ParsedDraft>'.
+    Type 'Promise<{ id: string; to: string[]; cc: string[]; bcc: string[]; subject: string; content: string; rawMessage: Message; }>' is not assignable to type 'Promise<ParsedDraft>'.
+      Type '{ id: string; to: string[]; cc: string[]; bcc: string[]; subject: string; content: string; rawMessage: Message; }' is not assignable to type 'ParsedDraft'.
+        Types of property 'rawMessage' are incompatible.
+          Type 'Message' has no properties in common with type '{ internalDate?: string | null | undefined; }'.
+src/lib/driver/microsoft.ts(701,46): error TS2339: Property 'arrayBuffer' does not exist on type '{ name: string; type: string; size: number; lastModified: number; base64: string; }'.
+src/lib/driver/microsoft.ts(1185,42): error TS2339: Property 'arrayBuffer' does not exist on type '{ name: string; type: string; size: number; lastModified: number; base64: string; }'.
+src/routes/agent/db/drizzle/migrations.js(2,19): error TS2307: Cannot find module './0000_faulty_dragon_man.sql' or its corresponding type declarations.
+src/routes/agent/mcp.ts(40,39): error TS2339: Property 'HYPERDRIVE' does not exist on type 'Env'.
+src/routes/agent/mcp.ts(87,36): error TS2339: Property 'VECTORIZE' does not exist on type 'Env'.
+src/routes/agent/mcp.ts(101,43): error TS2339: Property 'AI' does not exist on type 'Env'.
+src/routes/agent/mcp.ts(329,18): error TS2339: Property 'threads' does not exist on type 'never'.
+src/routes/agent/mcp.ts(329,37): error TS7006: Parameter 'thread' implicitly has an 'any' type.
+src/routes/chat.ts(305,30): error TS2339: Property 'DROP_AGENT_TABLES' does not exist on type 'Env'.
+src/routes/chat.ts(306,31): error TS2339: Property 'THREAD_SYNC_MAX_COUNT' does not exist on type 'Env'.
+src/routes/chat.ts(307,24): error TS2339: Property 'THREAD_SYNC_LOOP' does not exist on type 'Env'.
+src/routes/chat.ts(314,45): error TS2304: Cannot find name 'Env'.
+src/routes/chat.ts(359,38): error TS2345: Argument of type 'MailManager' is not assignable to parameter of type 'string'.
+src/routes/chat.ts(364,13): error TS2322: Type '{ buildGmailSearchQuery: Tool<z.ZodObject<{ query: z.ZodString; }, "strip", z.ZodTypeAny, { query: string; }, { query: string; }>, { query: string; }> & { execute: (args: { ...; }, options: ToolExecutionOptions) => PromiseLike<...>; }; then<TResult1 = { ...; } | { ...; }, TResult2 = never>(onfulfilled?: ((value: { ....' is not assignable to type 'ToolSet'.
+  Property 'then' is incompatible with index signature.
+    Type '<TResult1 = { getThread: Tool<ZodObject<{ id: ZodString; }, "strip", ZodTypeAny, { id: string; }, { id: string; }>, string> & { execute: (args: { id: string; }, options: ToolExecutionOptions) => PromiseLike<...>; }; ... 14 more ...; inboxRag: Tool<...> & { ...; }; } | { ...; }, TResult2 = never>(onfulfilled?: ((valu...' is not assignable to type 'Tool<any, any>'.
+src/routes/chat.ts(376,26): error TS2554: Expected 0 arguments, but got 3.
+src/routes/chat.ts(389,41): error TS2339: Property 'HYPERDRIVE' does not exist on type 'Env'.
+src/routes/chat.ts(851,19): error TS2339: Property 'THREADS_BUCKET' does not exist on type 'Env'.
+src/routes/chat.ts(1148,40): error TS2339: Property 'THREADS_BUCKET' does not exist on type 'Env'.
+src/routes/chat.ts(1178,45): error TS2304: Cannot find name 'Env'.
+src/routes/chat.ts(1183,39): error TS2339: Property 'HYPERDRIVE' does not exist on type 'Env'.
+src/routes/chat.ts(1345,36): error TS2339: Property 'VECTORIZE' does not exist on type 'Env'.
+src/routes/chat.ts(1348,43): error TS2339: Property 'AI' does not exist on type 'Env'.
+src/thread-workflow-utils/workflow-functions.ts(72,20): error TS2339: Property 'isQuestion' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(73,20): error TS2339: Property 'isRequest' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(74,20): error TS2339: Property 'isMeeting' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(75,20): error TS2339: Property 'isUrgent' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(112,30): error TS2339: Property 'draftContent' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(136,35): error TS2339: Property 'draftContent' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(173,26): error TS2339: Property 'VECTORIZE_MESSAGE' does not exist on type 'Env'.
+src/thread-workflow-utils/workflow-functions.ts(203,27): error TS2339: Property 'messagesToVectorize' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(208,49): error TS2339: Property 'messagesToVectorize' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(246,36): error TS2339: Property 'AI' does not exist on type 'Env'.
+src/thread-workflow-utils/workflow-functions.ts(297,27): error TS2339: Property 'embeddings' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(297,57): error TS2339: Property 'embeddings' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(304,23): error TS2339: Property 'embeddings' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(306,15): error TS2339: Property 'VECTORIZE_MESSAGE' does not exist on type 'Env'.
+src/thread-workflow-utils/workflow-functions.ts(306,56): error TS2339: Property 'embeddings' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(309,40): error TS2339: Property 'embeddings' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(326,37): error TS2339: Property 'VECTORIZE' does not exist on type 'Env'.
+src/thread-workflow-utils/workflow-functions.ts(352,44): error TS2339: Property 'existingSummary' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(384,25): error TS2339: Property 'summary' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(389,68): error TS2339: Property 'summary' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(397,15): error TS2339: Property 'VECTORIZE' does not exist on type 'Env'.
+src/thread-workflow-utils/workflow-functions.ts(403,34): error TS2339: Property 'summary' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(453,25): error TS2339: Property 'summary' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(458,45): error TS2339: Property 'userAccountLabels' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(459,42): error TS2339: Property 'userTopics' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(498,33): error TS2339: Property 'summary' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(500,38): error TS2339: Property 'AI' does not exist on type 'Env'.
+src/thread-workflow-utils/workflow-functions.ts(518,11): error TS2322: Type '{} | { suggestions: never[]; }' is not assignable to type '{ suggestions: { name: string; source: string; }[]; accountLabelsMap: Record<string, any>; }'.
+  Type '{}' is missing the following properties from type '{ suggestions: { name: string; source: string; }[]; accountLabelsMap: Record<string, any>; }': suggestions, accountLabelsMap
+src/thread-workflow-utils/workflow-functions.ts(530,49): error TS2339: Property 'userAccountLabels' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(589,42): error TS2339: Property 'userTopics' does not exist on type '{}'.
+src/thread-workflow-utils/workflow-functions.ts(670,34): error TS2339: Property 'AI' does not exist on type 'Env'.
+src/thread-workflow-utils/workflow-functions.ts(687,34): error TS2339: Property 'AI' does not exist on type 'Env'.
+src/trpc/routes/connections.ts(109,11): error TS2353: Object literal may only specify known properties, and 'name' does not exist in type '{ expiresAt: Date; scope: string; }'.
+src/trpc/routes/mail.ts(854,20): error TS2339: Property 'getRawEmail' does not exist on type 'DurableObjectStub<ZeroDriver & QueryableHandler>'.
+src/trpc/routes/mail.ts(868,38): error TS2339: Property 'getRawEmail' does not exist on type 'DurableObjectStub<ZeroDriver & QueryableHandler>'.
+src/types.ts(242,46): error TS2304: Cannot find name 'Env'.
+../../node_modules/.pnpm/dormroom@1.0.1/node_modules/dormroom/mod.ts(4,3): error TS1484: 'ExecFn' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+../../node_modules/.pnpm/dormroom@1.0.1/node_modules/dormroom/mod.ts(5,3): error TS1484: 'RawFn' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+../../node_modules/.pnpm/dormroom@1.0.1/node_modules/dormroom/mod.ts(7,3): error TS1484: 'StudioOptions' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+../../node_modules/.pnpm/dormroom@1.0.1/node_modules/dormroom/mod.ts(9,3): error TS1484: 'GetSchemaFn' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+../../node_modules/.pnpm/dormroom@1.0.1/node_modules/dormroom/mod.ts(12,24): error TS1484: 'MultiStubConfig' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+../../node_modules/.pnpm/dormroom@1.0.1/node_modules/dormroom/mod.ts(61,27): error TS18048: 'studioConfig' is possibly 'undefined'.
+../../node_modules/.pnpm/multistub@0.0.8/node_modules/multistub/multistub.ts(43,64): error TS2345: Argument of type '(MultiStubConfig | undefined)[]' is not assignable to parameter of type 'MultiStubConfig[]'.
+  Type 'MultiStubConfig | undefined' is not assignable to type 'MultiStubConfig'.
+    Type 'undefined' is not assignable to type 'MultiStubConfig'.
+../../node_modules/.pnpm/queryable-object@0.0.8/node_modules/queryable-object/queryable.ts(2,28): error TS1205: Re-exporting a type when 'verbatimModuleSyntax' is enabled requires using 'export type'.
+../../node_modules/.pnpm/queryable-object@0.0.8/node_modules/queryable-object/studio-middleware.ts(142,27): error TS7006: Parameter 'obj' implicitly has an 'any' type.
+../../node_modules/.pnpm/queryable-object@0.0.8/node_modules/queryable-object/studio-middleware.ts(142,32): error TS7006: Parameter 'col' implicitly has an 'any' type.
+../../node_modules/.pnpm/queryable-object@0.0.8/node_modules/queryable-object/studio-middleware.ts(142,37): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+../../node_modules/.pnpm/remote-sql-cursor@0.1.9/node_modules/remote-sql-cursor/do.ts(10,3): error TS1205: Re-exporting a type when 'verbatimModuleSyntax' is enabled requires using 'export type'.
+../../node_modules/.pnpm/remote-sql-cursor@0.1.9/node_modules/remote-sql-cursor/do.ts(11,3): error TS1205: Re-exporting a type when 'verbatimModuleSyntax' is enabled requires using 'export type'.
+../../node_modules/.pnpm/remote-sql-cursor@0.1.9/node_modules/remote-sql-cursor/do.ts(145,52): error TS18046: 'error' is of type 'unknown'.
+../../node_modules/.pnpm/remote-sql-cursor@0.1.9/node_modules/remote-sql-cursor/do.ts(162,51): error TS18046: 'error' is of type 'unknown'.
+../../node_modules/.pnpm/transferable-object@0.0.22/node_modules/transferable-object/transferable-object.ts(107,9): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+../../node_modules/.pnpm/transferable-object@0.0.22/node_modules/transferable-object/transferable-object.ts(133,13): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+../../node_modules/.pnpm/transferable-object@0.0.22/node_modules/transferable-object/transferable-object.ts(167,13): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+../../node_modules/.pnpm/transferable-object@0.0.22/node_modules/transferable-object/transferable-object.ts(186,13): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+../../node_modules/.pnpm/transferable-object@0.0.22/node_modules/transferable-object/transferable-object.ts(340,20): error TS2722: Cannot invoke an object which is possibly 'undefined'.

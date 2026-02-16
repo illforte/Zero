@@ -1,24 +1,24 @@
-import {
-  deleteActiveConnection,
-  FatalErrors,
-  fromBase64Url,
-  sanitizeContext,
-  StandardizedError,
-} from './utils';
+import { Client } from '@microsoft/microsoft-graph-client';
 import type {
-  OutlookCategory as Category,
-  MailFolder,
-  Message,
-  User,
+    OutlookCategory as Category,
+    MailFolder,
+    Message,
+    User,
 } from '@microsoft/microsoft-graph-types';
+import * as he from 'he';
+import { getContext } from 'hono/context-storage';
+import type { HonoContext } from '../../ctx';
 import type { IOutgoingMessage, Label, ParsedMessage } from '../../types';
 import { sanitizeTipTapHtml } from '../sanitize-tip-tap-html';
-import { Client } from '@microsoft/microsoft-graph-client';
-import type { MailManager, ManagerConfig } from './types';
-import { getContext } from 'hono/context-storage';
 import type { CreateDraftData } from '../schemas';
-import type { HonoContext } from '../../ctx';
-import * as he from 'he';
+import type { MailManager, ManagerConfig } from './types';
+import {
+    deleteActiveConnection,
+    FatalErrors,
+    fromBase64Url,
+    sanitizeContext,
+    StandardizedError,
+} from './utils';
 
 export class OutlookMailManager implements MailManager {
   private graphClient: Client;
@@ -1288,7 +1288,15 @@ export class OutlookMailManager implements MailManager {
       throw new StandardizedError(error, operation, context);
     }
   }
-  listHistory<T>(historyId: string): Promise<{ history: T[]; historyId: string }> {
-    return Promise.resolve({ history: [], historyId });
+  public async listHistory<T>(historyId: string): Promise<{ history: T[]; historyId: string }> {
+    return { history: [], historyId };
+  }
+
+  public async getMessageAttachments(_id: string) {
+    return [];
+  }
+
+  public async getRawEmail(_id: string) {
+    return '';
   }
 }

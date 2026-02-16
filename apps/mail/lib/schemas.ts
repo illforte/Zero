@@ -56,3 +56,13 @@ export const createDraftData = z.object({
 });
 
 export type CreateDraftData = z.infer<typeof createDraftData>;
+export const linkLair404Schema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(1, 'Password is required'),
+  imapHost: z.string().min(1, 'IMAP host is required').default('mail.lair404.xyz'),
+  imapPort: z.coerce.number().int().positive().default(993),
+  smtpHost: z.string().min(1, 'SMTP host is required').default('mail.lair404.xyz'),
+  smtpPort: z.coerce.number().int().positive().default(587),
+});
+
+export type LinkLair404Data = z.infer<typeof linkLair404Schema>;
