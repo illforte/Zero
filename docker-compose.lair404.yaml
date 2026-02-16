@@ -10,19 +10,12 @@ services:
       NODE_ENV: production
       VITE_PUBLIC_BACKEND_URL: https://mail-api.lair404.xyz
       VITE_PUBLIC_APP_URL: https://mail.lair404.xyz
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@mail-zero-db:5432/${POSTGRES_DB}
-      REDIS_URL: ${REDIS_URL}
-      REDIS_TOKEN: ${REDIS_TOKEN}
       NEXT_PUBLIC_BACKEND_URL: https://mail-api.lair404.xyz
       NEXT_PUBLIC_APP_URL: https://mail.lair404.xyz
     command: ["/bin/sh", "-c", "cd /app/apps/mail/build/client && exec npx --yes serve -l 3000"]
     depends_on:
-      mail-zero-db:
-        condition: service_healthy
-      mail-zero-valkey:
-        condition: service_healthy
-      mail-zero-upstash-proxy:
-        condition: service_healthy
+      mail-zero-server:
+        condition: service_started
     ports:
       - "127.0.0.1:3050:3000"
     healthcheck:
@@ -36,6 +29,42 @@ services:
     labels:
       - "com.lair404.service=mail-zero"
       - "com.lair404.port=3050"
+
+  mail-zero-server:
+    image: ghcr.io/lair404xyz/mail-zero:latest
+    container_name: mail-zero-server
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@mail-zero-db:5432/${POSTGRES_DB}
+      REDIS_URL: ${REDIS_URL}
+      REDIS_TOKEN: ${REDIS_TOKEN}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: https://mail-api.lair404.xyz
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+    command: ["/bin/sh", "-c", "cd /app/apps/server && PORT=3001 exec npx --yes tsx src/main.ts"]
+    depends_on:
+      mail-zero-db:
+        condition: service_healthy
+      mail-zero-valkey:
+        condition: service_healthy
+      mail-zero-upstash-proxy:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3051:3001"
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3001/health']
+      interval: 90s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - mail-zero-net
+    labels:
+      - "com.lair404.service=mail-zero-server"
+      - "com.lair404.port=3051"
 
   mail-zero-db:
     image: postgres:17-alpine

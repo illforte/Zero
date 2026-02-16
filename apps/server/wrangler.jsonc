@@ -484,5 +484,109 @@
         },
       ],
     },
+    "lair404": {
+      "triggers": {
+        "crons": ["0 */6 * * *"],
+      },
+      "ai": {
+        "binding": "AI",
+      },
+      "vectorize": [
+        {
+          "binding": "VECTORIZE",
+          "index_name": "threads-vector-lair404",
+        },
+        {
+          "binding": "VECTORIZE_MESSAGE",
+          "index_name": "messages-vector-lair404",
+        },
+      ],
+      "r2_buckets": [
+        {
+          "binding": "THREADS_BUCKET",
+          "bucket_name": "threads-lair404",
+        },
+      ],
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "ZERO_AGENT",
+            "class_name": "ZeroAgent",
+          },
+          {
+            "name": "ZERO_MCP",
+            "class_name": "ZeroMCP",
+          },
+          {
+            "name": "ZERO_DB",
+            "class_name": "ZeroDB",
+          },
+          {
+            "name": "ZERO_DRIVER",
+            "class_name": "ZeroDriver",
+          },
+          {
+            "name": "THINKING_MCP",
+            "class_name": "ThinkingMCP",
+          },
+          {
+            "name": "WORKFLOW_RUNNER",
+            "class_name": "WorkflowRunner",
+          },
+        ],
+      },
+      "migrations": [
+        {
+          "tag": "v1",
+          "new_sqlite_classes": ["ZeroAgent", "ZeroMCP", "ZeroDB", "ZeroDriver", "ThinkingMCP", "WorkflowRunner"],
+        },
+      ],
+      "observability": {
+        "enabled": true,
+      },
+      "vars": {
+        "NODE_ENV": "production",
+        "COOKIE_DOMAIN": "lair404.xyz",
+        "VITE_PUBLIC_BACKEND_URL": "https://mail-api.lair404.xyz",
+        "VITE_PUBLIC_APP_URL": "https://mail.lair404.xyz",
+        "DISABLE_CALLS": "true",
+        "DROP_AGENT_TABLES": "false",
+        "THREAD_SYNC_MAX_COUNT": "10",
+        "THREAD_SYNC_LOOP": "true",
+        "DISABLE_WORKFLOWS": "true",
+        "CLOUDFLARE_ACCOUNT_ID": "99827aafeb0d00dcce8215803247b380",
+        "CLOUDFLARE_API_TOKEN": "",
+      },
+      "kv_namespaces": [
+        {
+          "binding": "gmail_history_id",
+          "id": "67b5aaeedf1f492e892b33c8ca1466cd",
+        },
+        {
+          "binding": "gmail_processing_threads",
+          "id": "4fe8088298064e62aefebf58006d5628",
+        },
+        {
+          "binding": "subscribed_accounts",
+          "id": "aca4894415184199af8c61e1df7e7e4d",
+        },
+        {
+          "binding": "connection_labels",
+          "id": "9b536713446f45079496b6315e27a377",
+        },
+        {
+          "binding": "prompts_storage",
+          "id": "4624d92b24294c1ca6b173df50f7cb99",
+        },
+        {
+          "binding": "gmail_sub_age",
+          "id": "60d81668a0da40b7a69efa78fc498abc",
+        },
+        {
+          "binding": "snoozed_emails",
+          "id": "018f95c4bb84412b8636173b365d179e",
+        },
+      ],
+    },
   },
 }
