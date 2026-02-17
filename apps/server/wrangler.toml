@@ -1,0 +1,32 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "mail-api"
+main = "src/main.ts"
+compatibility_date = "2024-11-01"
+account_id = "99827aafeb0d00dcce8215803247b380"
+
+[env.production]
+name = "mail-api"
+routes = [
+  { pattern = "mail-api.lair404.xyz/*", zone_name = "lair404.xyz" }
+]
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "mail-zero-prod"
+database_id = "783c66e1-950d-417c-a053-e935464cfa09"
+
+[[env.production.queues.producers]]
+binding = "THREAD_QUEUE"
+queue = "thread-queue-prod"
+
+[[env.production.queues.producers]]
+binding = "SUBSCRIBE_QUEUE"
+queue = "subscribe-queue-prod"
+
+[env.local]
+name = "mail-api-local"
+
+[[env.local.d1_databases]]
+binding = "DB"
+database_name = "mail-zero-local"
+database_id = "local"

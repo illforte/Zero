@@ -8,6 +8,7 @@ import { getBrowserTimezone, isValidTimezone } from '../lib/timezones';
 import { createDb } from '../db';
 import { user as userTable } from '../db/schema';
 import { eq } from 'drizzle-orm';
+import { EProviders } from '../types';
 
 /**
  * Cloudflare Access Authentication Route
@@ -20,8 +21,17 @@ import { eq } from 'drizzle-orm';
  * 2. Our middleware validates the JWT
  * 3. We create/find the user in our database
  * 4. We create a session using better-auth
- * 5. Redirect to the app
+ * 5. Create an IMAP connection for the user
+ * 6. Redirect to the app
  */
+
+// Helper to extract email from IMAP URL
+function getImapEmailFromUrl(imapUrl: string | undefined): string | null {
+  if (!imapUrl) return null;
+  // Format: imap://user@domain.com:pass@host:port or imaps://user@domain.com:pass@host:port
+  const match = imapUrl.match(/^imaps?:\/\/([^:]+):/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
 
 export const cfAccessAuthRouter = new Hono<HonoContext>();
 
@@ -53,6 +63,27 @@ cfAccessAuthRouter.get('/cf-access/callback', cloudflareAccessMiddleware, async 
 
     if (existingUser) {
       userId = existingUser.id;
+
+      // For existing users, ensure they have an IMAP connection
+      const userDb = await getZeroDB(userId);
+      const connections = await userDb.findManyConnections();
+      const hasImapConnection = connections.some(conn => conn.providerId === EProviders.imap);
+
+      if (!hasImapConnection) {
+        const imapEmail = getImapEmailFromUrl(c.env.IMAP_URL) || 'mail@lair404.xyz';
+        await userDb.createConnection(
+          EProviders.imap,
+          imapEmail,
+          {
+            name: imapEmail.split('@')[0],
+            picture: '',
+            accessToken: 'imap-placeholder-token',
+            refreshToken: 'imap-placeholder-refresh',
+            scope: '',
+            expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+          }
+        );
+      }
     } else {
       // Create new user
       const newUser = await db.db
@@ -79,6 +110,24 @@ cfAccessAuthRouter.get('/cf-access/callback', cloudflareAccessMiddleware, async 
         ...defaultUserSettings,
         timezone,
       });
+
+      // Create IMAP connection for new user
+      // IMAP driver reads credentials from environment variables,
+      // so we use placeholder tokens (not actual OAuth tokens)
+      // Extract mailbox email from IMAP_URL (e.g., mail@lair404.xyz)
+      const imapEmail = getImapEmailFromUrl(c.env.IMAP_URL) || 'mail@lair404.xyz';
+      await userDb.createConnection(
+        EProviders.imap,
+        imapEmail,
+        {
+          name: imapEmail.split('@')[0],
+          picture: '',
+          accessToken: 'imap-placeholder-token',
+          refreshToken: 'imap-placeholder-refresh',
+          scope: '',
+          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
+        }
+      );
     }
 
     // Create session using better-auth

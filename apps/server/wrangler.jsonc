@@ -485,6 +485,7 @@
       ],
     },
     "lair404": {
+      "account_id": "b3de7f3b2ebe20946bfdc3237a4f68fb",
       "triggers": {
         "crons": ["0 */6 * * *"],
       },
@@ -506,6 +507,32 @@
           "binding": "THREADS_BUCKET",
           "bucket_name": "threads-lair404",
         },
+      ],
+      "queues": {
+        "producers": [
+          {
+            "queue": "thread-queue-prod",
+            "binding": "thread_queue",
+          },
+          {
+            "queue": "subscribe-queue-prod",
+            "binding": "subscribe_queue",
+          },
+        ],
+        "consumers": [
+          {
+            "queue": "subscribe-queue-prod",
+          },
+          {
+            "queue": "thread-queue-prod",
+          },
+        ],
+      },
+      "routes": [
+        {
+          "pattern": "mail-api.lair404.xyz/*",
+          "zone_name": "lair404.xyz"
+        }
       ],
       "durable_objects": {
         "bindings": [

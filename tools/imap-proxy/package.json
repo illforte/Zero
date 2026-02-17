@@ -10,6 +10,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@hono/node-server": "^1.14.0",
     "hono": "^4.7.12",
     "imap": "^0.8.19",
     "nodemailer": "^6.9.16",

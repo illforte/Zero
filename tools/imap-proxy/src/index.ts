@@ -285,7 +285,7 @@ app.post('/api/smtp/send', async (c) => {
 app.post('/api/imap/folders', async (c) => {
   try {
     const body = await c.req.json();
-    const { config } = ImapConfigSchema.parse(body);
+    const config = ImapConfigSchema.parse(body);
 
     const imap = new Imap({
       user: config.user,
@@ -315,11 +315,16 @@ app.post('/api/imap/folders', async (c) => {
   }
 });
 
-const port = process.env.PORT || 3060;
+const port = Number(process.env.PORT) || 3060;
 
 console.log(`🚀 IMAP Proxy starting on port ${port}`);
 
-export default {
-  port,
+// Start the server
+import { serve } from '@hono/node-server';
+
+serve({
   fetch: app.fetch,
-};
+  port,
+}, (info) => {
+  console.log(`✅ IMAP Proxy listening on http://localhost:${info.port}`);
+});

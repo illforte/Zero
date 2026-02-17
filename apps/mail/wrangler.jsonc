@@ -32,5 +32,12 @@
         "VITE_PUBLIC_APP_URL": "https://0.email",
       },
     },
+    "lair404": {
+      "name": "zero-lair404",
+      "vars": {
+        "VITE_PUBLIC_BACKEND_URL": "https://mail-api.lair404.xyz",
+        "VITE_PUBLIC_APP_URL": "https://mail.lair404.xyz",
+      },
+    },
   },
 }
