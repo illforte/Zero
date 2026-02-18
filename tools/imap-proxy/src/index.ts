@@ -7,6 +7,10 @@ import { z } from 'zod';
 
 const app = new Hono();
 
+// Helper: mailparser AddressObject can be single or array — extract text safely
+const getAddressText = (addr: any): string | undefined =>
+  Array.isArray(addr) ? addr[0]?.text : addr?.text;
+
 // CORS middleware
 app.use('*', cors({
   origin: ['https://mail-api.lair404.xyz', 'https://mail.lair404.xyz'],
@@ -100,8 +104,8 @@ app.post('/api/imap/list', async (c) => {
               msg.on('body', (stream) => {
                 simpleParser(stream, (err, parsed) => {
                   if (err) return;
-                  email.from = parsed.from?.text;
-                  email.to = parsed.to?.text;
+                  email.from = getAddressText(parsed.from);
+                  email.to = getAddressText(parsed.to);
                   email.subject = parsed.subject;
                   email.date = parsed.date;
                   email.messageId = parsed.messageId;
@@ -169,10 +173,10 @@ app.post('/api/imap/get', async (c) => {
 
                 imap.end();
                 resolve({
-                  from: parsed.from?.text,
-                  to: parsed.to?.text,
-                  cc: parsed.cc?.text,
-                  bcc: parsed.bcc?.text,
+                  from: getAddressText(parsed.from),
+                  to: getAddressText(parsed.to),
+                  cc: getAddressText(parsed.cc),
+                  bcc: getAddressText(parsed.bcc),
                   subject: parsed.subject,
                   date: parsed.date,
                   messageId: parsed.messageId,

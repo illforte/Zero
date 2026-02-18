@@ -31,40 +31,57 @@ services:
       - "com.lair404.port=3050"
 
   mail-zero-server:
-    image: ghcr.io/lair404xyz/mail-zero:latest
+    image: ghcr.io/lair404xyz/mail-zero-server-node:latest
     container_name: mail-zero-server
     restart: unless-stopped
     env_file: .env
+    network_mode: host
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@mail-zero-db:5432/${POSTGRES_DB}
-      REDIS_URL: ${REDIS_URL}
-      REDIS_TOKEN: ${REDIS_TOKEN}
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      PORT: "3051"
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:5436/${POSTGRES_DB}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?required}
       BETTER_AUTH_URL: https://mail-api.lair404.xyz
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-    command: ["/bin/sh", "-c", "cd /app/apps/server && PORT=3001 exec npx --yes tsx src/main.ts"]
+      CF_ACCESS_AUD: ${CF_ACCESS_AUD:?required}
+      CF_ACCESS_TEAM_DOMAIN: lair404.xyz
+      IMAP_PROXY_URL: http://127.0.0.1:3060
+      IMAP_URL: ${IMAP_URL:?required}
+      SMTP_URL: ${SMTP_URL:?required}
+      APP_URL: https://mail.lair404.xyz
+      CORS_ORIGINS: https://mail.lair404.xyz
+      COOKIE_DOMAIN: .lair404.xyz
     depends_on:
       mail-zero-db:
         condition: service_healthy
-      mail-zero-valkey:
+      mail-zero-imap-proxy:
         condition: service_healthy
-      mail-zero-upstash-proxy:
-        condition: service_healthy
-    ports:
-      - "127.0.0.1:3051:3001"
     healthcheck:
-      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3001/health']
-      interval: 90s
+      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3051/health']
+      interval: 30s
       timeout: 5s
       retries: 3
       start_period: 30s
-    networks:
-      - mail-zero-net
     labels:
       - "com.lair404.service=mail-zero-server"
       - "com.lair404.port=3051"
+
+  mail-zero-imap-proxy:
+    image: ghcr.io/lair404xyz/mail-zero-imap-proxy:latest
+    container_name: mail-zero-imap-proxy
+    restart: unless-stopped
+    env_file: .env
+    network_mode: host
+    environment:
+      PORT: "3060"
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3060/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "com.lair404.service=mail-zero-imap-proxy"
+      - "com.lair404.port=3060"
 
   mail-zero-db:
     image: postgres:17-alpine

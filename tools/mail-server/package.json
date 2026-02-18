@@ -1,0 +1,33 @@
+{
+  "name": "mail-zero-server-node",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "db:push": "drizzle-kit push"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.14.0",
+    "@hono/trpc-server": "^0.3.4",
+    "@trpc/server": "^11.0.0",
+    "better-auth": "^1.2.0",
+    "cheerio": "1.1.0",
+    "drizzle-orm": "^0.39.0",
+    "hono": "^4.7.12",
+    "jose": "^6.0.0",
+    "postgres": "^3.4.5",
+    "sanitize-html": "^2.16.0",
+    "superjson": "^2.2.2",
+    "uuid": "^11.0.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/sanitize-html": "^2.13.0",
+    "drizzle-kit": "^0.31.4",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}
