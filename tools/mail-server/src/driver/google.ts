@@ -6,7 +6,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { createMimeMessage } from 'mimetext';
 import { people } from '@googleapis/people';
 import sanitizeHtml from 'sanitize-html';
-import * as he from 'he';
+import he from 'he';
 
 // ─── Inlined utilities from apps/server/src/lib/driver/utils.ts ─────────────
 
