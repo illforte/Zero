@@ -39,10 +39,16 @@ ENV CI=true
 # Install all dependencies (including devDependencies for build)
 RUN pnpm install --frozen-lockfile
 
-# Set environment variables for build
+# Set environment variables for build.
+# VITE_PUBLIC_BACKEND_URL uses a placeholder that replace-placeholder.sh
+# replaces at container startup (docker-compose.lair404.yaml command).
+# Without this, VITE_PUBLIC_BACKEND_URL is undefined and API calls become
+# relative URLs like "undefined/api/trpc" instead of "/api/trpc".
 ENV NEXT_TELEMETRY_DISABLED=1 \
     NODE_ENV=production \
-    DOCKER_BUILD=true
+    DOCKER_BUILD=true \
+    VITE_PUBLIC_BACKEND_URL=http://REPLACE-BACKEND-URL.com \
+    VITE_PUBLIC_APP_URL=http://REPLACE-APP-URL.com
 
 # Build the application
 RUN cd apps/mail && pnpm run build
