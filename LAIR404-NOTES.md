@@ -204,12 +204,25 @@ Commit: `fix(imap-proxy): add rejectUnauthorized:false to SMTP nodemailer transp
 ## nginx Config (`nginx-lair404.conf`)
 
 Routes for `mail.lair404.xyz`:
+- `/agents/` → upstream port 3051 (WebSocket proxy, `Upgrade`/`Connection` headers)
 - `GET/POST /api/auth/**` → upstream port 3051 (Better Auth)
 - `POST /api/trpc/**` → rewrite to `/trpc/$1` → upstream port 3051
 - `GET /trpc/**` → upstream port 3051
 - Everything else → frontend port 3050
 
 Cookie auth check: `__Secure-better-auth.session_token` regex in `map` block.
+
+### tRPC stubs (cloud-only procedures, return empty/null):
+
+| Procedure | Returns |
+|-----------|---------|
+| `categories.defaults` | `[]` |
+| `user.getIntercomToken` | `null` |
+| `bimi.getByEmail` | `null` |
+| `mail.suggestRecipients` | `[]` |
+| `brain.getPrompts` | `[]` |
+| `brain.generateSummary` | `null` |
+| `ai.webSearch` | `[]` |
 
 ---
 
