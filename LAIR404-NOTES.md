@@ -122,24 +122,44 @@ Commit: `fix(mail-zero): add catch-all replace for mail-api.lair404.xyz in fix-b
 
 ---
 
-### 6. SMTP/IMAP URL Hostname Fix (server-side `.env`)
+### 6. SMTP/IMAP URL — Use lair404 docker-mailserver via 127.0.0.1
 
-**Problem:** `SMTP_URL`/`IMAP_URL` were set to `10.10.27.1` (which is lair404's
-Docker bridge gateway, not n1njanode's VPN IP). The TLS cert on port 465 at that
-IP was for `staging.litellm.lair404.xyz`, causing `ERR_TLS_CERT_ALTNAME_INVALID`.
+**Mail server:** lair404 runs `docker-mailserver` (ghcr.io/docker-mailserver/docker-mailserver)
+at `mail.lair404.xyz`, with all `@lair404.xyz` accounts configured.
 
-**Fix:** Changed to `n1njanode.com` (the public hostname of the mail server).
-n1njanode's mail server has a self-signed cert (`CN=vps-4495`) — but the
-imap-proxy already sets `rejectUnauthorized: false` on all TLS connections,
-so the self-signed cert is silently accepted.
+**Why `127.0.0.1` not `mail.lair404.xyz`:**
+`mail.lair404.xyz` is proxied through Cloudflare (188.114.96.3/97.3) which does
+NOT forward IMAP/SMTP ports. Since `mail-zero-imap-proxy` uses `network_mode: host`,
+it can reach the mailserver directly on `127.0.0.1:993/465`.
 
 ```
-# In /opt/weretrade/mail-zero/.env on lair404:
-SMTP_URL=smtps://mail%40lair404.xyz:...@n1njanode.com:465
-IMAP_URL=imaps://mail%40lair404.xyz:...@n1njanode.com:993
+# In /opt/weretrade/mail-zero/.env on lair404 (gitignored):
+SMTP_URL=smtps://mail%40lair404.xyz:PASSWORD@127.0.0.1:465
+IMAP_URL=imaps://mail%40lair404.xyz:PASSWORD@127.0.0.1:993
 ```
 
-This is not in docker-compose.lair404.yaml (gitignored `.env` file on server).
+**Important:** Do NOT use `mail.lair404.xyz` — Cloudflare proxies that DNS record.
+Use `127.0.0.1` (host network) to reach the `mailserver` container directly.
+
+### 7. SMTP TLS fix (`tools/imap-proxy/src/index.ts`)
+
+All IMAP connections in imap-proxy had `tlsOptions: { rejectUnauthorized: false }`,
+but the SMTP `/api/smtp/send` nodemailer transport was missing it. Connecting to
+`127.0.0.1:465` with a hostname cert causes `ERR_TLS_CERT_ALTNAME_INVALID`.
+
+**Fix:** Added `tls: { rejectUnauthorized: false }` to the nodemailer transport:
+
+```typescript
+const transporter = nodemailer.createTransport({
+  host: emailData.smtp.host,
+  port: emailData.smtp.port,
+  secure: emailData.smtp.secure,
+  auth: { user: emailData.smtp.user, pass: emailData.smtp.password },
+  tls: { rejectUnauthorized: false },  // ← added
+});
+```
+
+Commit: `fix(imap-proxy): add rejectUnauthorized:false to SMTP nodemailer transport`
 
 ---
 
