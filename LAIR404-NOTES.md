@@ -1,0 +1,178 @@
+# mail-zero — lair404.xyz Deployment Notes
+
+This file documents all customizations and fixes applied to make the upstream
+[mail-zero](https://github.com/Mail-0/Zero) work in the lair404.xyz self-hosted setup.
+
+---
+
+## Architecture
+
+```
+mail.lair404.xyz (nginx, port 3050 frontend + proxy /api/ /trpc/ → 3051)
+├── mail-zero          (frontend, port 127.0.0.1:3050)  [bridge: mail-zero-net]
+├── mail-zero-server   (backend,  port 3051)             [network_mode: host]
+├── mail-zero-imap-proxy (IMAP/SMTP proxy, port 3060)   [network_mode: host]
+├── mail-zero-db       (PostgreSQL, port 127.0.0.1:5436) [bridge: mail-zero-net]
+├── mail-zero-valkey   (Redis-compat, internal)          [bridge: mail-zero-net]
+└── mail-zero-upstash-proxy (Redis HTTP proxy, internal) [bridge: mail-zero-net]
+```
+
+Authentication: Cloudflare Access (JWT header `CF-Access-JWT-Assertion`) + Better Auth sessions.
+Mail backend: n1njanode.com (Postfix/Dovecot, ports 465 SMTPS, 993 IMAPS).
+
+---
+
+## Customizations in This Fork
+
+### 1. Billing Bypass (`apps/mail/components/connection/add.tsx`)
+
+Upstream limits free tier to 1 email connection. Self-hosted has no billing.
+
+**Fix:** Hardcoded `canCreateConnection = true` instead of checking `useBilling()`.
+
+```typescript
+// Before
+const { canCreateConnection, attach } = useBilling();
+
+// After — self-hosted: no billing limits
+const { attach } = useBilling();
+const canCreateConnection = true;
+```
+
+Commit: `fix(billing): bypass connection limit for self-hosted instance`
+
+---
+
+### 2. tRPC POST Batch Fix (`tools/mail-server/src/index.ts`)
+
+tRPC v11 with `@hono/trpc-server` rejects `POST` requests for query procedures by default.
+The browser's `httpBatchLink` sends `POST /trpc/endpoint?batch=1` — returns `405 METHOD_NOT_SUPPORTED`.
+
+**Fix:** Added `allowMethodOverride: true` to `trpcConfig`:
+
+```typescript
+const trpcConfig = {
+  router: appRouter,
+  allowMethodOverride: true, // allow POST for query procedures (tRPC v11 httpBatchLink sends POST)
+  createContext: ...
+};
+```
+
+Commit: `fix(trpc): allow POST for query procedures (allowMethodOverride: true)`
+
+---
+
+### 3. Same-Origin Backend URL (`docker-compose.lair404.yaml`)
+
+Upstream uses a separate `mail-api.lair404.xyz` domain for the backend API.
+In our setup both frontend and API are served from `mail.lair404.xyz` (nginx proxies
+`/api/` and `/trpc/` to port 3051). Using a separate domain required a second
+Cloudflare Access cookie — cross-origin auth fails.
+
+**Fix:** Set all backend URL env vars to `https://mail.lair404.xyz`:
+
+```yaml
+VITE_PUBLIC_BACKEND_URL: https://mail.lair404.xyz
+BETTER_AUTH_URL: https://mail.lair404.xyz   # was: https://mail-api.lair404.xyz
+CORS_ORIGINS: https://mail.lair404.xyz
+APP_URL: https://mail.lair404.xyz
+```
+
+Also added catch-all in `fix-bundle.js` (see below) to replace any hardcoded
+`mail-api.lair404.xyz` references remaining in the built JS bundle.
+
+Commit: `fix(mail): set BETTER_AUTH_URL to mail.lair404.xyz (same-origin)`
+
+---
+
+### 4. Google Driver (`tools/mail-server/src/driver/google.ts`)
+
+Added a complete Google Gmail driver (ported from the upstream `apps/server` package)
+to support Gmail connections via the node-based mail-zero-server.
+
+**Key fix — `he` import:** The `he` npm package is CommonJS. Using
+`import * as he from 'he'` puts exports at `he.default`, not `he.decode`.
+This caused `TypeError: he.decode is not a function` on every email open.
+
+```typescript
+// WRONG — namespace import of CJS module
+import * as he from 'he';
+
+// CORRECT — default import resolves to the CJS exports
+import he from 'he';
+```
+
+Commit: `fix(google-driver): use default import for 'he' CJS module`
+
+---
+
+### 5. fix-bundle.js (`tools/mail-zero/fix-bundle.js`)
+
+A script bind-mounted into the `mail-zero` frontend container at startup.
+Patches the built JS files before serving:
+
+1. Replace `http://REPLACE-BACKEND-URL.com` → `https://mail.lair404.xyz`
+2. Replace `host:void 0` (WebSocket host undefined) → `host:"mail.lair404.xyz"`
+3. Replace `host:"undefined"` string literal → `host:"mail.lair404.xyz"`
+4. **Catch-all:** Replace any remaining `mail-api.lair404.xyz` → `mail.lair404.xyz`
+5. Remove cloud-only sidebar items (Live Support, Feedback links)
+6. Adjust panel layout: sidebar 24%→20%, thread list 35%→42%
+
+Commit: `fix(mail-zero): add catch-all replace for mail-api.lair404.xyz in fix-bundle`
+
+---
+
+### 6. SMTP/IMAP URL Hostname Fix (server-side `.env`)
+
+**Problem:** `SMTP_URL`/`IMAP_URL` were set to `10.10.27.1` (which is lair404's
+Docker bridge gateway, not n1njanode's VPN IP). The TLS cert on port 465 at that
+IP was for `staging.litellm.lair404.xyz`, causing `ERR_TLS_CERT_ALTNAME_INVALID`.
+
+**Fix:** Changed to `n1njanode.com` (the public hostname of the mail server).
+n1njanode's mail server has a self-signed cert (`CN=vps-4495`) — but the
+imap-proxy already sets `rejectUnauthorized: false` on all TLS connections,
+so the self-signed cert is silently accepted.
+
+```
+# In /opt/weretrade/mail-zero/.env on lair404:
+SMTP_URL=smtps://mail%40lair404.xyz:...@n1njanode.com:465
+IMAP_URL=imaps://mail%40lair404.xyz:...@n1njanode.com:993
+```
+
+This is not in docker-compose.lair404.yaml (gitignored `.env` file on server).
+
+---
+
+## nginx Config (`nginx-lair404.conf`)
+
+Routes for `mail.lair404.xyz`:
+- `GET/POST /api/auth/**` → upstream port 3051 (Better Auth)
+- `POST /api/trpc/**` → rewrite to `/trpc/$1` → upstream port 3051
+- `GET /trpc/**` → upstream port 3051
+- Everything else → frontend port 3050
+
+Cookie auth check: `__Secure-better-auth.session_token` regex in `map` block.
+
+---
+
+## Container Images
+
+| Service | Image |
+|---------|-------|
+| Frontend | `ghcr.io/lair404xyz/mail-zero:latest` |
+| Backend | `ghcr.io/lair404xyz/mail-zero-server-node:latest` |
+| IMAP Proxy | `ghcr.io/lair404xyz/mail-zero-imap-proxy:latest` |
+
+All images built with `docker buildx build --platform linux/amd64` (lair404 is AMD64).
+
+---
+
+## Known Non-Issues
+
+- **WebSocket `wss://mail.lair404.xyz/agents/zero-agent/...` fails**: The AI agent
+  feature uses Cloudflare Durable Objects — not available in the self-hosted node
+  build. Harmless error, no threads depend on it.
+- **`/monitoring/sentry` CORS errors**: Sentry SDK present but no DSN configured.
+  Harmless, no impact on functionality.
+- **n1njanode self-signed cert**: `rejectUnauthorized: false` is already set in
+  imap-proxy — self-signed cert silently accepted for IMAP/SMTP.
