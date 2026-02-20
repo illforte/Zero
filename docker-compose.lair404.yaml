@@ -41,7 +41,7 @@ services:
       PORT: "3051"
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:5436/${POSTGRES_DB}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?required}
-      BETTER_AUTH_URL: https://mail-api.lair404.xyz
+      BETTER_AUTH_URL: https://mail.lair404.xyz
       CF_ACCESS_AUD: ${CF_ACCESS_AUD:?required}
       CF_ACCESS_TEAM_DOMAIN: weretrade.cloudflareaccess.com
       IMAP_PROXY_URL: http://127.0.0.1:3060
