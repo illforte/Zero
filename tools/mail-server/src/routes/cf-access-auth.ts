@@ -7,7 +7,26 @@ import { getDb, schema } from '../db/index.js';
 import { env } from '../env.js';
 import { eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
+import { createHmac } from 'crypto';
 import type { HonoContext } from '../types.js';
+
+/**
+ * Sign a cookie value to match better-call's serializeSignedCookie format
+ * (used internally by Better Auth via better-call).
+ *
+ * Format: encodeURIComponent(`${value}.${standardBase64_hmac_sha256(value, secret)}`)
+ *
+ * Critical: better-call's getSignedCookie guard:
+ *   if (signature.length !== 44 || !signature.endsWith("=")) return null;
+ * → Must use STANDARD base64 with padding (not base64url), exactly 44 chars ending in "="
+ * → Must URL-encode the result (parseCookies calls decodeURIComponent on read)
+ */
+function signCookieValue(value: string, secret: string): string {
+  const sig = createHmac('sha256', secret)
+    .update(value)
+    .digest('base64'); // standard base64 WITH padding — keep +, /, and = chars
+  return encodeURIComponent(`${value}.${sig}`);
+}
 
 /**
  * CF Access Authentication Route
@@ -67,12 +86,21 @@ cfAccessAuthRouter.get('/cf-access/callback', cloudflareAccessMiddleware, async 
       userId = newUser!.id;
     }
 
-    // 2. Ensure user has an IMAP connection
+    // 2. Find the best connection for redirect:
+    //    - Prefer Google connection matching the CF Access email (Gmail access)
+    //    - Fall back to any IMAP connection
+    //    - Last resort: create an IMAP placeholder connection
     const zeroDB = getNodeZeroDB(db, userId);
     const connections = await zeroDB.findManyConnections();
-    const hasImap = connections.some((c) => c.providerId === 'imap');
+    const googleConnection = connections.find((c) => c.providerId === 'google' && c.email === email);
+    const existingImap = connections.find((c) => c.providerId === 'imap');
+    let connectionId: string;
 
-    if (!hasImap) {
+    if (googleConnection) {
+      connectionId = googleConnection.id;
+    } else if (existingImap) {
+      connectionId = existingImap.id;
+    } else {
       const imapEmail = getImapEmailFromUrl(env.IMAP_URL) || email;
       await zeroDB.createConnection('imap', imapEmail, {
         name: imapEmail.split('@')[0],
@@ -82,9 +110,12 @@ cfAccessAuthRouter.get('/cf-access/callback', cloudflareAccessMiddleware, async 
         scope: '',
         expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
       });
+      // Fetch the newly created connection to get its ID
+      const fresh = await zeroDB.findManyConnections();
+      connectionId = fresh.find((c) => c.providerId === 'imap')!.id;
     }
 
-    // 3. Ensure default settings exist
+    // 3. Ensure default settings exist and isOnboarded is always true
     const settings = await zeroDB.findUserSettings();
     if (!settings) {
       await zeroDB.insertUserSettings({
@@ -92,13 +123,18 @@ cfAccessAuthRouter.get('/cf-access/callback', cloudflareAccessMiddleware, async 
         timezone: 'UTC',
         externalImages: true,
         customPrompt: '',
-        isOnboarded: false,
+        isOnboarded: true,
         colorTheme: 'system',
         zeroSignature: true,
         autoRead: true,
         animations: false,
         imageCompression: 'medium',
       });
+    } else {
+      const s = settings.settings as Record<string, unknown> | null;
+      if (!s?.isOnboarded) {
+        await zeroDB.updateUserSettings({ ...(s ?? {}), isOnboarded: true });
+      }
     }
 
     // 4. Create Better Auth session directly in DB
@@ -117,22 +153,26 @@ cfAccessAuthRouter.get('/cf-access/callback', cloudflareAccessMiddleware, async 
       userAgent: c.req.header('User-Agent') || null,
     });
 
-    // 5. Set session cookie
+    // 5. Set session cookie — Better Auth uses better-call's serializeSignedCookie format:
+    //    encodeURIComponent(value + "." + standardBase64_hmac_sha256(value, secret))
+    //    Signature must be exactly 44 standard base64 chars ending in "="
     const maxAge = 30 * 24 * 60 * 60;
+    const signedValue = signCookieValue(sessionToken, env.BETTER_AUTH_SECRET);
+    const cookieName = '__Secure-better-auth.session_token';
     const cookieOptions = [
-      `better-auth.session_token=${sessionToken}`,
+      `${cookieName}=${signedValue}`,
       `Max-Age=${maxAge}`,
       `Path=/`,
       `Domain=${env.COOKIE_DOMAIN}`,
       `HttpOnly`,
       `Secure`,
-      `SameSite=None`,
+      `SameSite=Lax`,
     ].join('; ');
 
     c.header('Set-Cookie', cookieOptions);
 
-    // 6. Redirect to app
-    return c.redirect(env.APP_URL);
+    // 6. Redirect directly to inbox with connection ID (Zero email route: /{connectionId}/mail/inbox)
+    return c.redirect(`${env.APP_URL}/${connectionId}/mail/inbox`);
   } catch (error) {
     console.error('[cf-access-auth] Error:', error);
     if (error instanceof HTTPException) throw error;

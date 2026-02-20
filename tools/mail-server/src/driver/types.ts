@@ -67,6 +67,14 @@ export interface ParsedDraft {
   rawMessage?: { internalDate?: string | null };
   cc?: string[];
   bcc?: string[];
+  attachments?: {
+    filename: string;
+    mimeType: string;
+    size: number;
+    attachmentId: string;
+    headers: { name: string; value: string }[];
+    body: string;
+  }[];
 }
 
 export type ManagerConfig = {

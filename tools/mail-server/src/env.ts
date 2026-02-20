@@ -26,6 +26,10 @@ export const env = {
 
   // Cookie
   COOKIE_DOMAIN: process.env.COOKIE_DOMAIN || '.lair404.xyz',
+
+  // Google OAuth (for Gmail connections)
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '',
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || '',
 } as const;
 
 export type Env = typeof env;

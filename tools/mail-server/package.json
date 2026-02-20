@@ -9,14 +9,19 @@
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
+    "@googleapis/gmail": "^9.0.0",
+    "@googleapis/people": "^1.0.0",
     "@hono/node-server": "^1.14.0",
     "@hono/trpc-server": "^0.3.4",
     "@trpc/server": "^11.0.0",
     "better-auth": "^1.2.0",
     "cheerio": "1.1.0",
     "drizzle-orm": "^0.39.0",
+    "google-auth-library": "^9.0.0",
+    "he": "^1.2.0",
     "hono": "^4.7.12",
     "jose": "^6.0.0",
+    "mimetext": "^3.0.0",
     "postgres": "^3.4.5",
     "sanitize-html": "^2.16.0",
     "superjson": "^2.2.2",
@@ -24,6 +29,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@types/he": "^1.2.3",
     "@types/node": "^22.10.5",
     "@types/sanitize-html": "^2.13.0",
     "drizzle-kit": "^0.31.4",
