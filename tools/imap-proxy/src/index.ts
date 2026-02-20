@@ -80,6 +80,7 @@ app.post('/api/imap/list', async (c) => {
 
     const emails = await new Promise<any[]>((resolve, reject) => {
       const results: any[] = [];
+      const parserPromises: Promise<void>[] = [];
 
       imap.once('ready', () => {
         imap.openBox(folder, true, (err, box) => {
@@ -102,16 +103,22 @@ app.post('/api/imap/list', async (c) => {
               const email: any = { uid: seqno };
 
               msg.on('body', (stream) => {
-                simpleParser(stream, (err, parsed) => {
-                  if (err) return;
-                  email.from = getAddressText(parsed.from);
-                  email.to = getAddressText(parsed.to);
-                  email.subject = parsed.subject;
-                  email.date = parsed.date;
-                  email.messageId = parsed.messageId;
-                  email.inReplyTo = parsed.inReplyTo;
-                  email.references = parsed.references;
+                // Wrap simpleParser in a Promise so fetch.once('end') can await all parsers
+                const p = new Promise<void>((res) => {
+                  simpleParser(stream, (err, parsed) => {
+                    if (!err) {
+                      email.from = getAddressText(parsed.from);
+                      email.to = getAddressText(parsed.to);
+                      email.subject = parsed.subject;
+                      email.date = parsed.date;
+                      email.messageId = parsed.messageId;
+                      email.inReplyTo = parsed.inReplyTo;
+                      email.references = parsed.references;
+                    }
+                    res();
+                  });
                 });
+                parserPromises.push(p);
               });
 
               msg.once('attributes', (attrs) => {
@@ -127,7 +134,8 @@ app.post('/api/imap/list', async (c) => {
             fetch.once('error', reject);
             fetch.once('end', () => {
               imap.end();
-              resolve(results);
+              // Wait for all simpleParser callbacks to complete before resolving
+              Promise.all(parserPromises).then(() => resolve(results)).catch(reject);
             });
           });
         });
