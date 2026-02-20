@@ -3,6 +3,9 @@ import { trpcServer } from '@hono/trpc-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import { WebSocketServer } from 'ws';
+import { createOpenAI } from '@ai-sdk/openai';
+import { streamText } from 'ai';
 import { env } from './env.js';
 import { getAuth } from './auth.js';
 import { getDb } from './db/index.js';
@@ -33,11 +36,7 @@ app.get('/health', (c) => {
   return c.json({ status: 'ok', service: 'mail-zero-server-node', version: '1.0.0' });
 });
 
-// AI agent stub — Durable Objects feature not available in self-hosted node mode.
-// Return 501 so PartySocket stops retrying immediately instead of spamming WebSocket errors.
-app.all('/agents/*', (c) => {
-  return c.json({ error: 'AI agent not available in self-hosted mode' }, 501);
-});
+// The AI agent WebSocket is attached directly to the HTTP server below (see wss setup).
 
 // CF Access auth routes
 app.route('/', cfAccessAuthRouter);
@@ -87,9 +86,85 @@ app.use('/api/trpc/*', trpcServer(trpcConfig));
 const port = parseInt(env.PORT);
 console.log(`🚀 mail-zero-server-node starting on port ${port}`);
 
-serve({ fetch: app.fetch, port }, (info) => {
+const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`✅ Listening on http://127.0.0.1:${info.port}`);
-  console.log(`   CF_ACCESS_AUD: ${env.CF_ACCESS_AUD ? '✓' : '✗ missing'}`);
-  console.log(`   DATABASE_URL:  ${env.DATABASE_URL ? '✓' : '✗ missing'}`);
-  console.log(`   IMAP_URL:      ${env.IMAP_URL ? '✓' : '✗ missing'}`);
+  console.log(`   CF_ACCESS_AUD:    ${env.CF_ACCESS_AUD ? '✓' : '✗ missing'}`);
+  console.log(`   DATABASE_URL:     ${env.DATABASE_URL ? '✓' : '✗ missing'}`);
+  console.log(`   IMAP_URL:         ${env.IMAP_URL ? '✓' : '✗ missing'}`);
+  console.log(`   LITELLM_BASE_URL: ${env.LITELLM_BASE_URL}`);
+});
+
+// AI agent WebSocket — implements the cf_agent protocol to connect frontend to LiteLLM proxy.
+// Uses ws package attached to the same HTTP server; handles /agents/:agent/:id paths.
+const wss = new WebSocketServer({ noServer: true });
+
+(server as import('node:http').Server).on('upgrade', (req, socket, head) => {
+  if (req.url?.startsWith('/agents/')) {
+    wss.handleUpgrade(req, socket as import('node:net').Socket, head, (ws) => {
+      wss.emit('connection', ws, req);
+    });
+  } else {
+    socket.destroy();
+  }
+});
+
+wss.on('connection', (ws) => {
+  const sessions = new Map<string, AbortController>();
+
+  ws.on('message', async (data: import('ws').RawData) => {
+    let msg: Record<string, unknown>;
+    try {
+      msg = JSON.parse(data.toString());
+    } catch {
+      return;
+    }
+
+    if (msg.type === 'cf_agent_use_chat_request') {
+      const init = msg.init as { method?: string; body?: string } | undefined;
+      if (init?.method !== 'POST' || !init.body) return;
+
+      const { messages } = JSON.parse(init.body) as { messages: { role: string; content: string }[] };
+      const msgId = msg.id as string;
+
+      ws.send(JSON.stringify({ type: 'cf_agent_chat_messages', messages }));
+
+      const abortController = new AbortController();
+      sessions.set(msgId, abortController);
+
+      try {
+        const litellm = createOpenAI({ apiKey: env.LITELLM_VIRTUAL_KEY, baseURL: env.LITELLM_BASE_URL });
+        const { textStream } = streamText({
+          model: litellm(env.LITELLM_MODEL),
+          system:
+            'You are a helpful email assistant. Help the user manage, read, summarize, and respond to their emails. Be concise and professional.',
+          messages: messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+          abortSignal: abortController.signal,
+        });
+
+        for await (const chunk of textStream) {
+          ws.send(
+            JSON.stringify({ id: msgId, type: 'cf_agent_use_chat_response', body: `0:${JSON.stringify(chunk)}\n`, done: false }),
+          );
+        }
+      } catch (e: unknown) {
+        if (!(e instanceof Error && e.name === 'AbortError')) {
+          console.error('[AI agent] error:', e);
+        }
+      } finally {
+        sessions.delete(msgId);
+        ws.send(JSON.stringify({ id: msgId, type: 'cf_agent_use_chat_response', body: '', done: true }));
+      }
+    } else if (msg.type === 'cf_agent_chat_clear') {
+      ws.send(JSON.stringify({ type: 'cf_agent_chat_messages', messages: [] }));
+    } else if (msg.type === 'cf_agent_chat_request_cancel') {
+      const id = msg.id as string;
+      sessions.get(id)?.abort();
+      sessions.delete(id);
+    }
+  });
+
+  ws.on('close', () => {
+    for (const c of sessions.values()) c.abort();
+    sessions.clear();
+  });
 });

@@ -30,6 +30,11 @@ export const env = {
   // Google OAuth (for Gmail connections)
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '',
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || '',
+
+  // LiteLLM proxy (AI assistant)
+  LITELLM_BASE_URL: process.env.LITELLM_BASE_URL || 'http://127.0.0.1:4000/v1',
+  LITELLM_VIRTUAL_KEY: process.env.LITELLM_VIRTUAL_KEY || 'sk-litellm',
+  LITELLM_MODEL: process.env.LITELLM_MODEL || 'mistral-large',
 } as const;
 
 export type Env = typeof env;
