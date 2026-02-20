@@ -15,7 +15,6 @@ import { m } from '@/paraglide/messages';
 import { motion } from 'motion/react';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
-import { useMemo } from 'react';
 import { toast } from 'sonner';
 
 export const AddConnectionDialog = ({
@@ -27,12 +26,10 @@ export const AddConnectionDialog = ({
   className?: string;
   onOpenChange?: (open: boolean) => void;
 }) => {
-  const { connections, attach } = useBilling();
+  const { attach } = useBilling();
 
-  const canCreateConnection = useMemo(() => {
-    if (!connections?.remaining && !connections?.unlimited) return false;
-    return (connections?.unlimited && !connections?.remaining) || (connections?.remaining ?? 0) > 0;
-  }, [connections]);
+  // Self-hosted: no billing limits — all connections allowed
+  const canCreateConnection = true;
   const pathname = useLocation().pathname;
 
   const handleUpgrade = async () => {
