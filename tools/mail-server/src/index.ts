@@ -64,6 +64,7 @@ const db = getDb();
 
 const trpcConfig = {
   router: appRouter,
+  allowMethodOverride: true, // allow POST for query procedures (tRPC v11 httpBatchLink sends POST)
   createContext: (_opts: unknown, c: Context<HonoContext>): TrpcContext => {
     return {
       c,
