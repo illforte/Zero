@@ -264,6 +264,7 @@ app.post('/api/smtp/send', async (c) => {
         user: emailData.smtp.user,
         pass: emailData.smtp.password,
       },
+      tls: { rejectUnauthorized: false },
     });
 
     const info = await transporter.sendMail({
