@@ -141,7 +141,45 @@ IMAP_URL=imaps://mail%40lair404.xyz:PASSWORD@127.0.0.1:993
 **Important:** Do NOT use `mail.lair404.xyz` — Cloudflare proxies that DNS record.
 Use `127.0.0.1` (host network) to reach the `mailserver` container directly.
 
-### 7. SMTP TLS fix (`tools/imap-proxy/src/index.ts`)
+### 7. AI Agent — WebSocket to LiteLLM Proxy (`tools/mail-server/src/index.ts`)
+
+The upstream AI agent uses Cloudflare Durable Objects (not available in self-hosted mode).
+Replaced with a Node.js WebSocket server that speaks the `cf_agent` protocol and routes to
+the lair404 LiteLLM proxy.
+
+**Backend changes:**
+```typescript
+// Removed: app.all('/agents/*', 501 stub)
+// Added: Node.js 'upgrade' event handler + ws WebSocket server
+// cf_agent_use_chat_request → streamText via LiteLLM proxy
+```
+
+**nginx** (`/etc/nginx/sites-available/mail.lair404.xyz`):
+Added before the catch-all `location /`:
+```nginx
+location /agents/ {
+    proxy_pass http://127.0.0.1:3051;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 3600;
+}
+```
+
+**Env vars** (in `/opt/weretrade/mail-zero/.env` on lair404):
+```
+LITELLM_BASE_URL=http://127.0.0.1:4000/v1
+LITELLM_VIRTUAL_KEY=sk-CPBfWiJGe8qOt1HGGGWpeqA  (mail-zero-ai-agent key, $20/30d budget)
+LITELLM_MODEL=mistral-large
+```
+
+LiteLLM virtual key: `mail-zero-ai-agent` — created 2026-02-21 with mistral-large access.
+
+Commit: `feat(server): WebSocket AI agent with LiteLLM proxy`
+
+---
+
+### 8. SMTP TLS fix (`tools/imap-proxy/src/index.ts`)
 
 All IMAP connections in imap-proxy had `tlsOptions: { rejectUnauthorized: false }`,
 but the SMTP `/api/smtp/send` nodemailer transport was missing it. Connecting to
@@ -189,9 +227,8 @@ All images built with `docker buildx build --platform linux/amd64` (lair404 is A
 
 ## Known Non-Issues
 
-- **WebSocket `wss://mail.lair404.xyz/agents/zero-agent/...` fails**: The AI agent
-  feature uses Cloudflare Durable Objects — not available in the self-hosted node
-  build. Harmless error, no threads depend on it.
+- **mail@lair404.xyz shows empty inbox**: IMAP login works, inbox simply has no emails
+  yet. Send test mail to confirm it appears.
 - **`/monitoring/sentry` CORS errors**: Sentry SDK present but no DSN configured.
   Harmless, no impact on functionality.
 - **n1njanode self-signed cert**: `rejectUnauthorized: false` is already set in
