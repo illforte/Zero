@@ -33,6 +33,12 @@ app.get('/health', (c) => {
   return c.json({ status: 'ok', service: 'mail-zero-server-node', version: '1.0.0' });
 });
 
+// AI agent stub — Durable Objects feature not available in self-hosted node mode.
+// Return 501 so PartySocket stops retrying immediately instead of spamming WebSocket errors.
+app.all('/agents/*', (c) => {
+  return c.json({ error: 'AI agent not available in self-hosted mode' }, 501);
+});
+
 // CF Access auth routes
 app.route('/', cfAccessAuthRouter);
 

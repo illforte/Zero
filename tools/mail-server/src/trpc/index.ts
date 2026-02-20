@@ -6,9 +6,11 @@ import { draftsRouter } from './routes/drafts.js';
 import { labelsRouter } from './routes/labels.js';
 import { userRouter } from './routes/user.js';
 import { mailRouter } from './routes/mail.js';
+import { bimiRouter } from './routes/bimi.js';
 import { router } from './trpc.js';
 
 export const appRouter = router({
+  bimi: bimiRouter,
   connections: connectionsRouter,
   drafts: draftsRouter,
   labels: labelsRouter,
