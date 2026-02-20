@@ -5,14 +5,14 @@ services:
     image: ghcr.io/lair404xyz/mail-zero:latest
     container_name: mail-zero
     restart: unless-stopped
-    env_file: .env
+    env_file: .env.lair404
     environment:
       NODE_ENV: production
       VITE_PUBLIC_BACKEND_URL: https://mail-api.lair404.xyz
       VITE_PUBLIC_APP_URL: https://mail.lair404.xyz
       NEXT_PUBLIC_BACKEND_URL: https://mail-api.lair404.xyz
       NEXT_PUBLIC_APP_URL: https://mail.lair404.xyz
-    command: ["/bin/sh", "-c", "cd /app/apps/mail/build/client && exec npx --yes serve -l 3000"]
+    command: ["/bin/sh", "-c", "/app/scripts/replace-placeholder.sh 'http://REPLACE-BACKEND-URL.com' 'https://mail-api.lair404.xyz' && /app/scripts/replace-placeholder.sh 'http://REPLACE-APP-URL.com' 'https://mail.lair404.xyz' && cd /app/apps/mail/build/client && exec npx --yes serve -s -l 3000"]
     depends_on:
       mail-zero-server:
         condition: service_started
@@ -34,7 +34,7 @@ services:
     image: ghcr.io/lair404xyz/mail-zero-server-node:latest
     container_name: mail-zero-server
     restart: unless-stopped
-    env_file: .env
+    env_file: .env.lair404
     network_mode: host
     environment:
       NODE_ENV: production
@@ -43,13 +43,15 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?required}
       BETTER_AUTH_URL: https://mail-api.lair404.xyz
       CF_ACCESS_AUD: ${CF_ACCESS_AUD:?required}
-      CF_ACCESS_TEAM_DOMAIN: lair404.xyz
+      CF_ACCESS_TEAM_DOMAIN: weretrade.cloudflareaccess.com
       IMAP_PROXY_URL: http://127.0.0.1:3060
       IMAP_URL: ${IMAP_URL:?required}
       SMTP_URL: ${SMTP_URL:?required}
       APP_URL: https://mail.lair404.xyz
       CORS_ORIGINS: https://mail.lair404.xyz
       COOKIE_DOMAIN: .lair404.xyz
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?required}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?required}
     depends_on:
       mail-zero-db:
         condition: service_healthy
@@ -69,7 +71,7 @@ services:
     image: ghcr.io/lair404xyz/mail-zero-imap-proxy:latest
     container_name: mail-zero-imap-proxy
     restart: unless-stopped
-    env_file: .env
+    env_file: .env.lair404
     network_mode: host
     environment:
       PORT: "3060"

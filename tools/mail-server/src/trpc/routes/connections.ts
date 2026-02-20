@@ -36,7 +36,11 @@ export const connectionsRouter = router({
     .input(z.object({ connectionId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       // Clear default if deleting the active connection
-      await ctx.zeroDB.updateUser({ defaultConnectionId: null });
+      const user = await ctx.zeroDB.findUser();
+      if (user?.defaultConnectionId === input.connectionId) {
+        await ctx.zeroDB.updateUser({ defaultConnectionId: null });
+      }
+      await ctx.zeroDB.deleteConnection(input.connectionId);
     }),
 
   getDefault: publicProcedure.query(async ({ ctx }) => {

@@ -109,12 +109,17 @@ export const AddConnectionDialog = ({
                   disabled={!canCreateConnection}
                   variant="outline"
                   className="h-24 w-full flex-col items-center justify-center gap-2"
-                  onClick={async () =>
+                  onClick={async () => {
+                    // Google connections go through our custom OAuth flow that creates `connection` records
+                    if (provider.providerId === 'google') {
+                      window.location.href = `${import.meta.env.VITE_PUBLIC_BACKEND_URL}/api/gmail/auth`;
+                      return;
+                    }
                     await authClient.linkSocial({
                       provider: provider.providerId,
                       callbackURL: `${window.location.origin}${pathname}`,
-                    })
-                  }
+                    });
+                  }}
                 >
                   <Icon className="size-6!" />
                   <span className="text-xs">{provider.name}</span>

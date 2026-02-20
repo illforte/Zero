@@ -8,6 +8,7 @@ import { getAuth } from './auth.js';
 import { getDb } from './db/index.js';
 import { appRouter } from './trpc/index.js';
 import { cfAccessAuthRouter } from './routes/cf-access-auth.js';
+import { googleOAuthRouter } from './routes/google-oauth.js';
 import type { HonoContext } from './types.js';
 import type { TrpcContext } from './trpc/context.js';
 import type { Context } from 'hono';
@@ -35,14 +36,17 @@ app.get('/health', (c) => {
 // CF Access auth routes
 app.route('/', cfAccessAuthRouter);
 
+// Google OAuth re-auth (must be before better-auth /api/auth/** catch-all)
+app.route('/', googleOAuthRouter);
+
 // Better Auth session endpoints
 const auth = getAuth();
 app.on(['GET', 'POST'], '/api/auth/**', (c) => {
   return auth.handler(c.req.raw);
 });
 
-// Session injection middleware for tRPC
-app.use('/trpc/*', async (c, next) => {
+// Session injection middleware for tRPC (handles both /trpc/* and /api/trpc/* paths)
+const trpcSessionMiddleware = async (c: Context<HonoContext>, next: () => Promise<void>) => {
   const session = await auth.api
     .getSession({ headers: c.req.raw.headers })
     .catch(() => null);
@@ -50,25 +54,28 @@ app.use('/trpc/*', async (c, next) => {
     c.set('sessionUser', session.user);
   }
   await next();
-});
+};
+
+app.use('/trpc/*', trpcSessionMiddleware);
+app.use('/api/trpc/*', trpcSessionMiddleware);
 
 // tRPC
 const db = getDb();
 
-app.use(
-  '/trpc/*',
-  trpcServer({
-    router: appRouter,
-    createContext: (_opts, c: Context<HonoContext>): TrpcContext => {
-      return {
-        c,
-        sessionUser: c.get('sessionUser'),
-        auth,
-        db,
-      };
-    },
-  }),
-);
+const trpcConfig = {
+  router: appRouter,
+  createContext: (_opts: unknown, c: Context<HonoContext>): TrpcContext => {
+    return {
+      c,
+      sessionUser: c.get('sessionUser'),
+      auth,
+      db,
+    };
+  },
+};
+
+app.use('/trpc/*', trpcServer(trpcConfig));
+app.use('/api/trpc/*', trpcServer(trpcConfig));
 
 const port = parseInt(env.PORT);
 console.log(`🚀 mail-zero-server-node starting on port ${port}`);

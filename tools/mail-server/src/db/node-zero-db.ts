@@ -131,6 +131,14 @@ export class NodeZeroDB {
       .where(eq(userSettingsTable.userId, this.userId));
   }
 
+  async deleteConnection(connectionId: string) {
+    return this.db
+      .delete(connectionTable)
+      .where(
+        and(eq(connectionTable.id, connectionId), eq(connectionTable.userId, this.userId)),
+      );
+  }
+
   async deleteUser() {
     return this.db.delete(userTable).where(eq(userTable.id, this.userId));
   }
