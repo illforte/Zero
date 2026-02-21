@@ -21,7 +21,7 @@ import { people } from '@googleapis/people';
 import { cleanSearchValue } from '../utils';
 import { env } from '../../env';
 import { Effect } from 'effect';
-import * as he from 'he';
+import he from 'he';
 
 export class GoogleMailManager implements MailManager {
   private auth;

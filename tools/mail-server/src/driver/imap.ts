@@ -101,27 +101,28 @@ export class ImapMailManager implements MailManager {
 
     const email = result.email;
 
+    const message = {
+      id,
+      threadId: id,
+      title: email.subject || '',
+      subject: email.subject || '',
+      tags: [],
+      sender: { email: email.from || '' },
+      to: [{ email: email.to || '' }],
+      cc: null,
+      bcc: null,
+      tls: false,
+      receivedOn: email.date ? new Date(email.date).toISOString() : new Date().toISOString(),
+      unread: true,
+      body: email.html || email.text || '',
+      processedHtml: email.html || email.text || '',
+      blobUrl: '',
+    };
+
     return {
-      messages: [
-        {
-          id,
-          threadId: id,
-          title: email.subject || '',
-          subject: email.subject || '',
-          tags: [],
-          sender: { email: email.from || '' },
-          to: [{ email: email.to || '' }],
-          cc: null,
-          bcc: null,
-          tls: false,
-          receivedOn: email.date ? new Date(email.date).toISOString() : new Date().toISOString(),
-          unread: true,
-          body: email.html || email.text || '',
-          processedHtml: email.html || email.text || '',
-          blobUrl: '',
-        },
-      ],
-      hasUnread: false,
+      messages: [message],
+      latest: message,
+      hasUnread: true,
       totalReplies: 0,
       labels: [{ id: 'INBOX', name: 'Inbox' }],
     };

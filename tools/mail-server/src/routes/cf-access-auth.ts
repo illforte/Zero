@@ -171,8 +171,8 @@ cfAccessAuthRouter.get('/cf-access/callback', cloudflareAccessMiddleware, async 
 
     c.header('Set-Cookie', cookieOptions);
 
-    // 6. Redirect directly to inbox with connection ID (Zero email route: /{connectionId}/mail/inbox)
-    return c.redirect(`${env.APP_URL}/${connectionId}/mail/inbox`);
+    // 6. Redirect to inbox (Zero email route: /mail/inbox)
+    return c.redirect(`${env.APP_URL}/mail/inbox`);
   } catch (error) {
     console.error('[cf-access-auth] Error:', error);
     if (error instanceof HTTPException) throw error;

@@ -179,7 +179,55 @@ Commit: `feat(server): WebSocket AI agent with LiteLLM proxy`
 
 ---
 
-### 8. SMTP TLS fix (`tools/imap-proxy/src/index.ts`)
+### 8. IMAP `get()` missing `latest` field (`tools/mail-server/src/driver/imap.ts`)
+
+Zero's `Thread` component renders `null` when `getThreadData?.latest` is `undefined`
+(`mail-list.tsx:215: if (!latestMessage || !getThreadData) return null`).
+The Google driver sets `latest` = most recent message; IMAP driver was missing it.
+
+**Fix:** Extract the single message into a variable and return it as `latest`:
+
+```typescript
+const message = { id, threadId: id, subject, sender, ... };
+return {
+  messages: [message],
+  latest: message,  // ← added
+  hasUnread: true,
+  ...
+};
+```
+
+Commit: `fix(imap-driver): return latest message in get() so Thread component renders`
+
+---
+
+### 9. CF Access auth redirect URL fix (`tools/mail-server/src/routes/cf-access-auth.ts`)
+
+The callback redirected to `/${connectionId}/mail/inbox` but Zero's routes have no
+`connectionId` URL segment — that URL hits the `/*` catch-all → 404 page on first login.
+
+**Fix:** Redirect to `/mail/inbox` (no connectionId prefix):
+
+```typescript
+return c.redirect(`${env.APP_URL}/mail/inbox`);
+```
+
+Commit: `fix(cf-access-auth): redirect to /mail/inbox (not /{connectionId}/mail/inbox)`
+
+---
+
+### Known Limitation: All IMAP connections share global IMAP_URL
+
+The `ImapMailManager` uses `env.IMAP_URL` for ALL IMAP connections — per-connection
+credentials are not stored. Switching to `admin@lair404.xyz` shows `mail@lair404.xyz`
+inbox because both use the same global IMAP URL.
+
+**Workaround:** Only `mail@lair404.xyz` (the configured IMAP_URL account) shows real data.
+**Proper fix:** Store per-connection IMAP URL in `accessToken` field, parse it in driver.
+
+---
+
+### 10. SMTP TLS fix (`tools/imap-proxy/src/index.ts`)
 
 All IMAP connections in imap-proxy had `tlsOptions: { rejectUnauthorized: false }`,
 but the SMTP `/api/smtp/send` nodemailer transport was missing it. Connecting to

@@ -261,7 +261,7 @@ export function AIChat({
     <div className={cn('flex h-full flex-col', isFullScreen ? 'mx-auto max-w-xl' : '')}>
       <div className="no-scrollbar flex-1 overflow-y-auto" ref={messagesContainerRef}>
         <div className="min-h-full px-2 py-4">
-          {chatMessages && !chatMessages.enabled ? (
+          {false ? (
             <div
               onClick={() => setPricingDialog('true')}
               className="absolute inset-0 flex flex-col items-center justify-center"
@@ -394,7 +394,7 @@ export function AIChat({
                   form="ai-chat-form"
                   type="submit"
                   className="inline-flex cursor-pointer gap-1.5 rounded-lg"
-                  disabled={!chatMessages.enabled}
+                  disabled={false}
                 >
                   <div className="dark:bg[#141414] flex h-7 items-center justify-center gap-1 rounded-sm bg-[#262626] px-2 pr-1">
                     <CurvedArrow className="mt-1.5 h-4 w-4 fill-white dark:fill-[#929292]" />
