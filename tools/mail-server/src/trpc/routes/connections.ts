@@ -43,6 +43,24 @@ export const connectionsRouter = router({
       await ctx.zeroDB.deleteConnection(input.connectionId);
     }),
 
+  updateImapCredentials: privateProcedure
+    .input(
+      z.object({
+        connectionId: z.string(),
+        imapUrl: z.string().startsWith('imap', { message: 'Must be an IMAP URL (imap:// or imaps://)' }),
+        smtpUrl: z.string().startsWith('smtp', { message: 'Must be an SMTP URL (smtp:// or smtps://)' }),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const found = await ctx.zeroDB.findUserConnection(input.connectionId);
+      if (!found) throw new TRPCError({ code: 'NOT_FOUND' });
+      if (found.providerId !== 'imap') throw new TRPCError({ code: 'BAD_REQUEST', message: 'Only IMAP connections support credential updates' });
+      await ctx.zeroDB.updateConnection(input.connectionId, {
+        accessToken: input.imapUrl,
+        refreshToken: input.smtpUrl,
+      });
+    }),
+
   getDefault: publicProcedure.query(async ({ ctx }) => {
     if (!ctx.sessionUser) return null;
     const zeroDB = getNodeZeroDB(ctx.db, ctx.sessionUser.id);

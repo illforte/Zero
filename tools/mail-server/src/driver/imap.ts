@@ -32,8 +32,20 @@ export class ImapMailManager implements MailManager {
   constructor(public config: ManagerConfig) {
     this.proxyUrl = env.IMAP_PROXY_URL || 'http://127.0.0.1:3060';
 
-    const imapUrl = env.IMAP_URL || '';
-    const smtpUrl = env.SMTP_URL || '';
+    // Per-connection credentials: accessToken holds IMAP URL, refreshToken holds SMTP URL.
+    // Fall back to global env vars when placeholders are stored (pre-migration connections).
+    const accessToken = this.config.auth.accessToken || '';
+    const refreshToken = this.config.auth.refreshToken || '';
+
+    const imapUrl =
+      accessToken.startsWith('imaps://') || accessToken.startsWith('imap://')
+        ? accessToken
+        : env.IMAP_URL || '';
+
+    const smtpUrl =
+      refreshToken.startsWith('smtps://') || refreshToken.startsWith('smtp://')
+        ? refreshToken
+        : env.SMTP_URL || '';
 
     this.imapConfig = this.parseImapUrl(imapUrl);
     this.smtpConfig = this.parseSmtpUrl(smtpUrl);

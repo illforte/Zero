@@ -216,14 +216,39 @@ Commit: `fix(cf-access-auth): redirect to /mail/inbox (not /{connectionId}/mail/
 
 ---
 
-### Known Limitation: All IMAP connections share global IMAP_URL
+### Per-Connection IMAP Credentials
 
-The `ImapMailManager` uses `env.IMAP_URL` for ALL IMAP connections — per-connection
-credentials are not stored. Switching to `admin@lair404.xyz` shows `mail@lair404.xyz`
-inbox because both use the same global IMAP URL.
+**Fixed.** `ImapMailManager` now reads IMAP/SMTP URLs from the connection's `accessToken`/`refreshToken`
+fields (stored in DB), falling back to `env.IMAP_URL`/`env.SMTP_URL` when the field is a placeholder.
 
-**Workaround:** Only `mail@lair404.xyz` (the configured IMAP_URL account) shows real data.
-**Proper fix:** Store per-connection IMAP URL in `accessToken` field, parse it in driver.
+**DB field convention:**
+- `accessToken` = full IMAP URL, e.g. `imaps://user%40domain.com:password@127.0.0.1:993`
+- `refreshToken` = full SMTP URL, e.g. `smtps://user%40domain.com:password@127.0.0.1:465`
+- Value `imap-placeholder` = no per-connection credentials → falls back to global env var
+
+**Set credentials per connection via tRPC:**
+```bash
+# From lair404, using a session cookie:
+curl -s -X POST https://mail.lair404.xyz/trpc/connections.updateImapCredentials \
+  -H "Content-Type: application/json" \
+  -H "Cookie: __Secure-better-auth.session_token=TOKEN" \
+  -d '{"json":{"connectionId":"CONNECTION-ID","imapUrl":"imaps://admin%40lair404.xyz:PASSWORD@127.0.0.1:993","smtpUrl":"smtps://admin%40lair404.xyz:PASSWORD@127.0.0.1:465"}}'
+```
+
+**Or directly via SQL on lair404:**
+```sql
+UPDATE mail0_connection
+SET access_token = 'imaps://admin%40lair404.xyz:PASSWORD@127.0.0.1:993',
+    refresh_token = 'smtps://admin%40lair404.xyz:PASSWORD@127.0.0.1:465',
+    updated_at = NOW()
+WHERE email = 'admin@lair404.xyz' AND provider_id = 'imap';
+```
+
+**Current state (2026-02-21):**
+- `mail@lair404.xyz` — real IMAP/SMTP URLs stored (shows own inbox ✅)
+- `admin@`, `support@`, `alerts@`, `contact@`, `hello@`, `info@`, `masterspl1nter@`, `reporting@` — placeholder (shows mail@lair404.xyz inbox as fallback)
+
+To give each additional account its own inbox, set its IMAP/SMTP URL via SQL using the account's password from the docker-mailserver on n1njanode.
 
 ---
 

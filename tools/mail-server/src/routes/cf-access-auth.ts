@@ -102,11 +102,19 @@ cfAccessAuthRouter.get('/cf-access/callback', cloudflareAccessMiddleware, async 
       connectionId = existingImap.id;
     } else {
       const imapEmail = getImapEmailFromUrl(env.IMAP_URL) || email;
+      // Store real IMAP/SMTP URLs in accessToken/refreshToken so per-connection credentials work.
+      // For users whose email matches the global IMAP_URL account, use those credentials directly.
+      // Others get a placeholder; admin can update via trpc connections.updateImapCredentials.
+      const globalImapEmail = getImapEmailFromUrl(env.IMAP_URL);
+      const imapCred =
+        globalImapEmail && globalImapEmail === imapEmail ? (env.IMAP_URL || 'imap-placeholder') : 'imap-placeholder';
+      const smtpCred =
+        globalImapEmail && globalImapEmail === imapEmail ? (env.SMTP_URL || 'imap-placeholder') : 'imap-placeholder';
       await zeroDB.createConnection('imap', imapEmail, {
         name: imapEmail.split('@')[0],
         picture: '',
-        accessToken: 'imap-placeholder',
-        refreshToken: 'imap-placeholder',
+        accessToken: imapCred,
+        refreshToken: smtpCred,
         scope: '',
         expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
       });
