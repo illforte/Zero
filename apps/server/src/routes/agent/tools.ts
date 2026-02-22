@@ -384,7 +384,7 @@ const deleteLabel = (connectionId: string) =>
     },
   });
 
-const buildGmailSearchQuery = () =>
+const buildGmailSearchQuery = (connectionId: string) =>
   tool({
     description: 'Build a Gmail search query',
     parameters: z.object({
@@ -394,7 +394,10 @@ const buildGmailSearchQuery = () =>
       console.log('[DEBUG] buildGmailSearchQuery', params);
 
       const result = await generateText({
-        model: getModel(),
+        model: getModel(undefined, {
+          user_id: connectionId,
+          tags: ['build-gmail-search-query'],
+        }),
         system: GmailSearchAssistantSystemPrompt(),
         prompt: params.query,
       });
@@ -427,7 +430,7 @@ const getCurrentDate = () =>
     },
   });
 
-export const webSearch = () =>
+export const webSearch = (connectionId?: string) =>
   tool({
     description: 'Search the web for information using Perplexity AI',
     parameters: z.object({
@@ -444,6 +447,16 @@ export const webSearch = () =>
             { role: 'user', content: query },
           ],
           maxTokens: 1024,
+          headers: connectionId
+            ? {
+                'x-litellm-user-id': connectionId,
+                'x-litellm-metadata': JSON.stringify({
+                  user_id: connectionId,
+                  project: 'mail-zero',
+                  tags: ['perplexity-web-search'],
+                }),
+              }
+            : undefined,
         });
 
         return response.text;
@@ -468,7 +481,7 @@ export const tools = async (connectionId: string, ragEffect: boolean = false) =>
     [Tools.BulkDelete]: bulkDelete(connectionId),
     [Tools.BulkArchive]: bulkArchive(connectionId),
     [Tools.DeleteLabel]: deleteLabel(connectionId),
-    [Tools.BuildGmailSearchQuery]: buildGmailSearchQuery(),
+    [Tools.BuildGmailSearchQuery]: buildGmailSearchQuery(connectionId),
     [Tools.GetCurrentDate]: getCurrentDate(),
     [Tools.InboxRag]: tool({
       description:

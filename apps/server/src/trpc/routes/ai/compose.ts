@@ -4,12 +4,12 @@ import {
 } from '../../../services/writing-style-service';
 import { escapeXml } from '../../../thread-workflow-utils/workflow-utils';
 import { StyledEmailAssistantSystemPrompt } from '../../../lib/prompts';
+import { getModel, getMiniModel } from '../../../lib/ai';
 import { webSearch } from '../../../routes/agent/tools';
 import { activeConnectionProcedure } from '../../trpc';
 import { getPrompt } from '../../../lib/brain';
 import { stripHtml } from 'string-strip-html';
 import { EPrompts } from '../../../types';
-import { getModel, getMiniModel } from '../../../lib/ai';
 import { env } from '../../../env';
 import { generateText } from 'ai';
 import { z } from 'zod';
@@ -86,7 +86,10 @@ export async function composeEmail(input: ComposeEmailInput) {
         ];
 
   const { text } = await generateText({
-    model: getMiniModel(),
+    model: getMiniModel(undefined, {
+      user_id: connectionId,
+      tags: ['email-compose'],
+    }),
     messages: [
       {
         role: 'system',
@@ -105,7 +108,7 @@ export async function composeEmail(input: ComposeEmailInput) {
     presencePenalty: 0.1,
     maxRetries: 1,
     tools: {
-      webSearch: webSearch(),
+      webSearch: webSearch(connectionId),
     },
   });
 
@@ -159,7 +162,11 @@ export const generateEmailSubject = activeConnectionProcedure
       connectionId: activeConnection.id,
     });
 
-    const subject = await generateSubject(message, writingStyleMatrix?.style as WritingStyleMatrix);
+    const subject = await generateSubject(
+      message,
+      activeConnection.id,
+      writingStyleMatrix?.style as WritingStyleMatrix,
+    );
 
     return {
       subject,
@@ -248,7 +255,11 @@ const EmailAssistantPrompt = ({
   return parts.join('\n\n');
 };
 
-const generateSubject = async (message: string, styleProfile?: WritingStyleMatrix | null) => {
+const generateSubject = async (
+  message: string,
+  connectionId: string,
+  styleProfile?: WritingStyleMatrix | null,
+) => {
   const parts: string[] = [];
 
   parts.push('# Email Subject Generation Task');
@@ -267,7 +278,10 @@ const generateSubject = async (message: string, styleProfile?: WritingStyleMatri
   );
 
   const { text } = await generateText({
-    model: getModel(),
+    model: getModel(undefined, {
+      user_id: connectionId,
+      tags: ['email-subject-generation'],
+    }),
     messages: [
       {
         role: 'system',

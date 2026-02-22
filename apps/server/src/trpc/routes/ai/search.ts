@@ -22,7 +22,10 @@ export const generateSearchQuery = activeDriverProcedure
           : '';
 
     const result = await generateObject({
-      model: getModel(),
+      model: getModel(undefined, {
+        user_id: ctx.activeConnection.id,
+        tags: ['generate-search-query'],
+      }),
       system: systemPrompt,
       prompt: input.query,
       schema: z.object({

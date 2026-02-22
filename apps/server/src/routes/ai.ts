@@ -1,6 +1,6 @@
 import { systemPrompt } from '../services/call-service/system-prompt';
-import { getModel } from '../lib/ai';
 import { tools } from './agent/tools';
+import { getModel } from '../lib/ai';
 import { generateText } from 'ai';
 import { Tools } from '../types';
 import { createDb } from '../db';
@@ -129,7 +129,10 @@ aiRouter.post('/call', async (c) => {
   console.log('[DEBUG] Creating toolset for connection:', connection.id);
   const toolset = await tools(connection.id);
   const { text } = await generateText({
-    model: getModel(),
+    model: getModel(undefined, {
+      user_id: connection.id,
+      tags: ['ai-phone-call'],
+    }),
     system: systemPrompt,
     prompt: data.query,
     tools: toolset,

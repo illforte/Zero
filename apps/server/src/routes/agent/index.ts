@@ -427,7 +427,7 @@ export class ZeroDriver extends Agent<ZeroEnv> {
       existingLabels = existingLabelsResult;
 
       const topics = yield* Effect.tryPromise(() =>
-        generateWhatUserCaresAbout(subjects, { existingLabels }),
+        generateWhatUserCaresAbout(subjects, { existingLabels }, this.name),
       ).pipe(
         Effect.tap((topics) =>
           Effect.sync(() => {
@@ -553,14 +553,32 @@ export class ZeroDriver extends Agent<ZeroEnv> {
     if (!this.driver) {
       throw new Error('No driver available');
     }
-    return await this.driver.markAsRead(threadIds);
+    const result = await this.driver.markAsRead(threadIds);
+
+    // Update local DB to reflect changes immediately
+    try {
+      await Promise.all(threadIds.map((id) => this.modifyThreadLabelsInDB(id, [], ['UNREAD'])));
+    } catch (error) {
+      console.warn('[ZeroDriver] Failed to update local DB after markAsRead:', error);
+    }
+
+    return result;
   }
 
   async markAsUnread(threadIds: string[]) {
     if (!this.driver) {
       throw new Error('No driver available');
     }
-    return await this.driver.markAsUnread(threadIds);
+    const result = await this.driver.markAsUnread(threadIds);
+
+    // Update local DB to reflect changes immediately
+    try {
+      await Promise.all(threadIds.map((id) => this.modifyThreadLabelsInDB(id, ['UNREAD'], [])));
+    } catch (error) {
+      console.warn('[ZeroDriver] Failed to update local DB after markAsUnread:', error);
+    }
+
+    return result;
   }
 
   async normalizeIds(ids: string[]) {
@@ -588,7 +606,9 @@ export class ZeroDriver extends Agent<ZeroEnv> {
     if (!this.driver) {
       throw new Error('No driver available');
     }
-    return await this.driver.delete(id);
+    const result = await this.driver.delete(id);
+    await this.deleteThread(id);
+    return result;
   }
 
   async deleteAllSpam() {
@@ -697,10 +717,44 @@ export class ZeroDriver extends Agent<ZeroEnv> {
     if (!this.driver) {
       throw new Error('No driver available');
     }
-    return await this.driver.modifyLabels(threadIds, {
+    const result = await this.driver.modifyLabels(threadIds, {
       addLabels: addLabelIds,
       removeLabels: removeLabelIds,
     });
+
+    // Update local DB to reflect changes immediately
+    try {
+      // Resolve label names to IDs (if they were names)
+      const userLabels = await this.getUserLabels();
+      const labelMap = new Map(userLabels.map((l) => [l.name.toLowerCase(), l.id]));
+      const systemLabels = new Set([
+        'INBOX',
+        'TRASH',
+        'SPAM',
+        'DRAFT',
+        'SENT',
+        'STARRED',
+        'UNREAD',
+        'IMPORTANT',
+      ]);
+
+      const resolveId = (nameOrId: string) => {
+        const upper = nameOrId.toUpperCase();
+        if (systemLabels.has(upper)) return upper;
+        return labelMap.get(nameOrId.toLowerCase()) || nameOrId;
+      };
+
+      const resolvedAdd = addLabelIds.map(resolveId);
+      const resolvedRemove = removeLabelIds.map(resolveId);
+
+      await Promise.all(
+        threadIds.map((id) => this.modifyThreadLabelsInDB(id, resolvedAdd, resolvedRemove)),
+      );
+    } catch (error) {
+      console.warn('[ZeroDriver] Failed to update local DB after modifyLabels:', error);
+    }
+
+    return result;
   }
 
   async listHistory<T>(historyId: string) {
@@ -738,23 +792,11 @@ export class ZeroDriver extends Agent<ZeroEnv> {
   }
 
   async bulkDelete(threadIds: string[]) {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return await this.driver.modifyLabels(threadIds, {
-      addLabels: ['TRASH'],
-      removeLabels: ['INBOX'],
-    });
+    return await this.modifyLabels(threadIds, ['TRASH'], ['INBOX']);
   }
 
   async bulkArchive(threadIds: string[]) {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return await this.driver.modifyLabels(threadIds, {
-      addLabels: [],
-      removeLabels: ['INBOX'],
-    });
+    return await this.modifyLabels(threadIds, [], ['INBOX']);
   }
 
   async updateLabel(
@@ -1353,7 +1395,10 @@ export class ZeroDriver extends Agent<ZeroEnv> {
 
     const genQueryEffect = Effect.tryPromise(() => {
       return generateText({
-        model: getModel(),
+        model: getModel(undefined, {
+          user_id: this.name,
+          tags: ['zero-driver-search'],
+        }),
         system: GmailSearchAssistantSystemPrompt(),
         prompt: params.query,
       }).then((response) => response.text);
@@ -1593,36 +1638,40 @@ export class ZeroDriver extends Agent<ZeroEnv> {
         throw new Error('No driver available');
       }
 
-      // Get all user labels to map names to IDs
+      // 1. Update remote (Gmail)
+      const result = await this.driver.modifyLabels([threadId], {
+        addLabels: addLabelNames,
+        removeLabels: removeLabelNames,
+      });
+
+      // 2. Resolve label names to IDs to update local DB
       const userLabels = await this.getUserLabels();
       const labelMap = new Map(userLabels.map((label) => [label.name.toLowerCase(), label.id]));
 
-      // Convert label names to IDs
-      const addLabelIds: string[] = [];
-      const removeLabelIds: string[] = [];
+      const systemLabels = new Set([
+        'INBOX',
+        'TRASH',
+        'SPAM',
+        'DRAFT',
+        'SENT',
+        'STARRED',
+        'UNREAD',
+        'IMPORTANT',
+      ]);
 
-      // Process add labels
-      for (const labelName of addLabelNames) {
-        const labelId = labelMap.get(labelName.toLowerCase());
-        if (labelId) {
-          addLabelIds.push(labelId);
-        } else {
-          console.warn(`Label "${labelName}" not found in user labels`);
-        }
-      }
+      const resolve = (nameOrId: string) => {
+        const upper = nameOrId.toUpperCase();
+        if (systemLabels.has(upper)) return upper;
+        return labelMap.get(nameOrId.toLowerCase()) || nameOrId;
+      };
 
-      // Process remove labels
-      for (const labelName of removeLabelNames) {
-        const labelId = labelMap.get(labelName.toLowerCase());
-        if (labelId) {
-          removeLabelIds.push(labelId);
-        } else {
-          console.warn(`Label "${labelName}" not found in user labels`);
-        }
-      }
+      const addLabelIds = addLabelNames.map(resolve);
+      const removeLabelIds = removeLabelNames.map(resolve);
 
-      // Call the existing function with IDs
-      return await this.modifyThreadLabelsInDB(threadId, addLabelIds, removeLabelIds);
+      // 3. Update local DB
+      await this.modifyThreadLabelsInDB(threadId, addLabelIds, removeLabelIds);
+
+      return result;
     } catch (error) {
       console.error('Failed to modify thread labels by name:', error);
       throw error;
@@ -1865,7 +1914,10 @@ export class ZeroAgent extends AIChatAgent<ZeroEnv> {
           {},
         );
 
-        const model = getModel();
+        const model = getModel(undefined, {
+          user_id: connectionId,
+          tags: ['zero-agent-chat'],
+        });
 
         const result = streamText({
           model,

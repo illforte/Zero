@@ -52,6 +52,14 @@ export class ToolOrchestrator {
                 { role: 'user', content: query },
               ],
               maxTokens: 1024,
+              headers: {
+                'x-litellm-user-id': this.connectionId,
+                'x-litellm-metadata': JSON.stringify({
+                  user_id: this.connectionId,
+                  project: 'mail-zero',
+                  tags: ['perplexity-web-search-streaming'],
+                }),
+              },
             });
 
             // Stream the response directly to the data stream
