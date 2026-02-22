@@ -33,8 +33,9 @@ export const env = {
 
   // LiteLLM proxy (AI assistant)
   LITELLM_BASE_URL: process.env.LITELLM_BASE_URL || 'http://127.0.0.1:4000/v1',
-  LITELLM_VIRTUAL_KEY: process.env.LITELLM_VIRTUAL_KEY || 'sk-litellm',
-  LITELLM_MODEL: process.env.LITELLM_MODEL || 'mistral-large',
+  LITELLM_VIRTUAL_KEY: process.env.LITELLM_VIRTUAL_KEY || 'sk-E6wxtuH1xVty6avQa-SLlg',
+  LITELLM_MODEL: process.env.LITELLM_MODEL || 'llama',
+  OPENAI_MODEL: process.env.OPENAI_MODEL || 'llama',
 } as const;
 
 export type Env = typeof env;

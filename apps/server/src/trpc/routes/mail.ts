@@ -407,6 +407,23 @@ export const mailRouter = router({
       ctx.c.executionCtx.waitUntil(afterTask());
       return { success: true };
     }),
+  tagCloudflare: activeDriverProcedure.mutation(async ({ ctx }) => {
+    const { activeConnection } = ctx;
+    const agent = await getZeroAgent(activeConnection.id);
+
+    const threads = await agent.rawListThreads({
+      query: 'from:cloudflare.com',
+      maxResults: 500,
+    });
+
+    if (threads.threads.length > 0) {
+      const threadIds = threads.threads.map((t) => t.id);
+      await agent.modifyLabels(threadIds, ['Cloudflare'], []);
+      return { success: true, count: threads.threads.length };
+    }
+
+    return { success: true, count: 0 };
+  }),
   delete: activeDriverProcedure
     .input(
       z.object({

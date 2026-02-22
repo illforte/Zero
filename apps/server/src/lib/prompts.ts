@@ -426,6 +426,11 @@ export const AiChatPrompt = () =>
           <purpose>Send new email</purpose>
           <example>sendEmail({ to: [{ email: "user@example.com" }], subject: "Hello", message: "Body" })</example>
         </tool>
+
+        <tool name="tagCloudflare">
+          <purpose>Tag all emails from Cloudflare with a "Cloudflare" label</purpose>
+          <example>tagCloudflare({})</example>
+        </tool>
       </tools>
 
       <workflow_examples>

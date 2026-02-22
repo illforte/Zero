@@ -46,13 +46,12 @@ import { AIChatAgent } from 'agents/ai-chat-agent';
 import { ToolOrchestrator } from './orchestrator';
 import { getPromptName } from '../../pipelines';
 import { Agent, type Connection } from 'agents';
-import { anthropic } from '@ai-sdk/anthropic';
 import { env, type ZeroEnv } from '../../env';
 import { connection } from '../../db/schema';
 import type { WSMessage } from 'partyserver';
 import { tools as authTools } from './tools';
 import { processToolCalls } from './utils';
-import { openai } from '@ai-sdk/openai';
+import { getModel } from '../../lib/ai';
 import { createDb } from '../../db';
 import { DriverRpcDO } from './rpc';
 import type { Message } from 'ai';
@@ -1352,13 +1351,13 @@ export class ZeroDriver extends Agent<ZeroEnv> {
       }),
     ).pipe(Effect.catchAll(() => Effect.succeed([])));
 
-    const genQueryEffect = Effect.tryPromise(() =>
-      generateText({
-        model: openai(this.env.OPENAI_MODEL || 'gpt-4o'),
+    const genQueryEffect = Effect.tryPromise(() => {
+      return generateText({
+        model: getModel(),
         system: GmailSearchAssistantSystemPrompt(),
         prompt: params.query,
-      }).then((response) => response.text),
-    ).pipe(Effect.catchAll(() => Effect.succeed(query)));
+      }).then((response) => response.text);
+    }).pipe(Effect.catchAll(() => Effect.succeed(query)));
 
     const genQueryResult = await Effect.runPromise(genQueryEffect);
 
@@ -1866,10 +1865,7 @@ export class ZeroAgent extends AIChatAgent<ZeroEnv> {
           {},
         );
 
-        const model =
-          this.env.USE_OPENAI === 'true'
-            ? openai(this.env.OPENAI_MODEL || 'gpt-4o')
-            : anthropic(this.env.OPENAI_MODEL || 'claude-3-7-sonnet-20250219');
+        const model = getModel();
 
         const result = streamText({
           model,

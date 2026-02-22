@@ -3,7 +3,7 @@ import { composeEmail } from '../../trpc/routes/ai/compose';
 import { getZeroAgent } from '../../lib/server-utils';
 import { perplexity } from '@ai-sdk/perplexity';
 import { colors } from '../../lib/prompts';
-import { openai } from '@ai-sdk/openai';
+import { getModel } from '../../lib/ai';
 import { generateText, tool } from 'ai';
 import { Tools } from '../../types';
 import { env } from '../../env';
@@ -394,7 +394,7 @@ const buildGmailSearchQuery = () =>
       console.log('[DEBUG] buildGmailSearchQuery', params);
 
       const result = await generateText({
-        model: openai(env.OPENAI_MODEL || 'gpt-4o'),
+        model: getModel(),
         system: GmailSearchAssistantSystemPrompt(),
         prompt: params.query,
       });

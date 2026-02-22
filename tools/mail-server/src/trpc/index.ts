@@ -4,6 +4,7 @@ import { templatesRouter } from './routes/templates.js';
 import { settingsRouter } from './routes/settings.js';
 import { draftsRouter } from './routes/drafts.js';
 import { labelsRouter } from './routes/labels.js';
+import { brainRouter } from './routes/brain.js';
 import { userRouter } from './routes/user.js';
 import { mailRouter } from './routes/mail.js';
 import { bimiRouter } from './routes/bimi.js';
@@ -11,6 +12,7 @@ import { router } from './trpc.js';
 
 export const appRouter = router({
   bimi: bimiRouter,
+  brain: brainRouter,
   connections: connectionsRouter,
   drafts: draftsRouter,
   labels: labelsRouter,

@@ -250,6 +250,22 @@ export const mailRouter = router({
       return { success: true };
     }),
 
+  tagCloudflare: activeDriverProcedure.mutation(async ({ ctx }) => {
+    const threads = await ctx.driver.list({
+      folder: 'inbox',
+      query: 'from:cloudflare.com',
+      maxResults: 500,
+    });
+
+    if (threads.threads.length > 0) {
+      const threadIds = threads.threads.map((t) => t.id);
+      await ctx.driver.modifyLabels(threadIds, { addLabels: ['Cloudflare'], removeLabels: [] });
+      return { success: true, count: threads.threads.length };
+    }
+
+    return { success: true, count: 0 };
+  }),
+
   delete: activeDriverProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {

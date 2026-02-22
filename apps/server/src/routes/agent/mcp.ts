@@ -595,6 +595,42 @@ export class ZeroMCP extends McpAgent<typeof env, Record<string, unknown>, { use
     //   },
     // );
 
+    this.server.registerTool(
+      'tagCloudflare',
+      {
+        description: 'Search for emails from cloudflare.com and apply a "Cloudflare" label to them',
+        inputSchema: {},
+      },
+      async () => {
+        const threads = await agent.rawListThreads({
+          query: 'from:cloudflare.com',
+          maxResults: 500,
+        });
+
+        if (threads.threads.length > 0) {
+          const threadIds = threads.threads.map((t) => t.id);
+          await agent.modifyLabels(threadIds, ['Cloudflare'], []);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Successfully tagged ${threads.threads.length} Cloudflare email(s)`,
+              },
+            ],
+          };
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: 'No Cloudflare emails found to tag',
+            },
+          ],
+        };
+      },
+    );
+
     // this.server.registerTool(
     //   'bulkArchive',
     //   {

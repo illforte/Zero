@@ -15,9 +15,9 @@
  */
 
 import { generateObject } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { getMiniModel } from '../ai';
 import { z } from 'zod';
-import { env } from 'cloudflare:workers';
+import { env } from '../../env';
 
 export interface GenerateTopicsOptions {
   sampleSize?: number;
@@ -91,7 +91,7 @@ ${sample.join('\n')}`;
 
   try {
     const { object } = await generateObject({
-      model: openai(env.OPENAI_MODEL || 'gpt-4o-mini'),
+      model: getMiniModel(),
       schema,
       system: systemPrompt,
       prompt: userPrompt,
