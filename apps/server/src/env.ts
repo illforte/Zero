@@ -62,7 +62,6 @@ export type ZeroEnv = {
   OPENAI_API_KEY: string;
   LITELLM_BASE_URL: string;
   LITELLM_VIRTUAL_KEY: string;
-  LITELLM_MODEL: string;
   BRAIN_URL: string;
   COMPOSIO_API_KEY: string;
   GROQ_API_KEY: string;

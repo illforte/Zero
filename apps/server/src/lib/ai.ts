@@ -40,19 +40,14 @@ export const getAnthropic = () => {
 
 export const getModel = (modelName?: string, metadata?: ModelMetadata) => {
   if (env.USE_OPENAI === 'true') {
-    // LITELLM_MODEL takes priority over OPENAI_MODEL — the LiteLLM virtual key
-    // only allows models explicitly listed. OPENAI_MODEL may reference OpenAI-native
-    // names (e.g. gpt-4o) that are not routed or permitted in the proxy.
-    return getOpenAI(metadata)(modelName || env.LITELLM_MODEL || env.OPENAI_MODEL || 'mistral-large-latest');
+    return getOpenAI(metadata)(modelName || env.OPENAI_MODEL || 'gpt-4o');
   }
   return getAnthropic()(modelName || env.OPENAI_MODEL || 'claude-3-7-sonnet-20250219');
 };
 
 export const getMiniModel = (modelName?: string, metadata?: ModelMetadata) => {
   if (env.USE_OPENAI === 'true') {
-    // Use OPENAI_MINI_MODEL which should be set to an allowed mini model in the
-    // LiteLLM virtual key (e.g. mistral-small-latest). Falls back to safe default.
-    return getOpenAI(metadata)(modelName || env.OPENAI_MINI_MODEL || 'mistral-small-latest');
+    return getOpenAI(metadata)(modelName || env.OPENAI_MINI_MODEL || 'gpt-4o-mini');
   }
   return getAnthropic()(modelName || env.OPENAI_MINI_MODEL || 'claude-3-haiku-20240307');
 };
