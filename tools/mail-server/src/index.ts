@@ -197,9 +197,9 @@ wss.on('connection', async (ws, req) => {
       },
     }),
     deleteThreads: tool({
-      description: 'Move email threads to the trash.',
+      description: 'Move email threads to the trash. IMPORTANT: threadIds must be real IDs from searchEmails results (e.g. "18e2a3b4c5d6e7f8"), never placeholder text.',
       parameters: z.object({
-        threadIds: z.array(z.string()).describe('Array of thread IDs to move to trash'),
+        threadIds: z.array(z.string()).describe('Array of exact thread ID strings from searchEmails results (e.g. ["18e2a3b4c5d6e7f8", "18e2a3b4c5d6e7f9"])'),
       }),
       execute: async ({ threadIds }) => {
         const { threadIds: normalizedIds } = driver.normalizeIds(threadIds);
@@ -381,13 +381,17 @@ wss.on('connection', async (ws, req) => {
         const { textStream } = streamText({
           model: litellm(env.LITELLM_MODEL),
           system:
-            'You are a helpful email assistant. Help the user manage, read, summarize, and respond to their emails. ' +
-            'You have tools to search, read, and delete emails. ' +
-            'When asked to delete emails, ALWAYS search for them first to confirm the IDs, then delete. ' +
-            'Be concise and professional.',
+            'You are a helpful email assistant. Help the user manage, read, summarize, and respond to their emails.\n' +
+            'CRITICAL RULES:\n' +
+            '1. You have tools to search, read, delete, archive, and label emails.\n' +
+            '2. For ANY destructive action (delete, archive, move), you MUST call searchEmails first to get real thread IDs.\n' +
+            '3. Thread IDs are long alphanumeric strings like "18e2a3b4c5d6e7f8". NEVER use placeholder text as IDs.\n' +
+            '4. When the user confirms (e.g. "yes", "do it", "go ahead"), ALWAYS re-search to get fresh thread IDs, then execute the action in the same turn.\n' +
+            '5. Pass the exact "id" field values from search results to delete/archive/mark tools. Never paraphrase or summarize IDs.\n' +
+            '6. Be concise and professional. Show counts and subjects, not raw IDs.',
           messages: messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
           tools: mailTools,
-          maxSteps: 5,
+          maxSteps: 10,
           abortSignal: abortController.signal,
         });
 
