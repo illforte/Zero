@@ -1,50 +1,60 @@
-### Zero MCP
+## Zero MCP
 
-## Capabilties
+## Capabilities
 
 Zero MCP provides the following capabilities:
 
 ### Email Management
 
-- Get email threads by ID
-- List emails in specific folders
-- Create and send new emails
-- Create email drafts
-- Send existing drafts
-- Delete emails
-- Mark emails as read/unread
-- Modify email labels
-- Bulk delete emails
-- Bulk archive emails
+- `search_emails`: Search threads with summarized preview.
+- `get_email_content`: Get full thread messages.
+- `reply_to_thread`: Send a reply within a thread context.
+- `mark_as_spam`: Move threads to Spam.
+- `delete_threads`: Move threads to Trash.
+- `archive_threads`: Move threads out of Inbox.
+- `send_email`: Send new messages.
+- `unsubscribe`: Use List-Unsubscribe headers.
+- `get_mailbox_stats`: Unread/Total counts overview.
 
 ### Label Management
 
-- Get all user labels
-- Create new custom labels with custom colors
-- Delete existing labels
+- `list_labels`: Get all available labels/folders.
 
 ### AI-Powered Features
 
-- Compose emails with AI assistance
-- Ask questions about mailbox content
-- Ask questions about specific email threads
-- Web search using Perplexity AI
+- `summarize_thread`: AI-generated concise thread summaries (via LiteLLM).
 
-### Search and Organization
+## Deployment & Security
 
-- Search emails with custom queries
-- Filter emails by labels
-- Manage email organization through labels
-- Archive and trash management
+Zero MCP supports two transport modes:
 
-## How to use?
+### 1. Stdio (Local)
+Standard stdin/stdout communication. Used by local agents.
 
-You can connecto ZeroMCP using two methods:
+### 2. SSE (Remote - lair404)
+Exposed on port **5008**. 
 
-1. Better Auth session token
-2. OAuth (Coming soon)
+**Security:** 
+- Requires `Authorization: Bearer {MCP_API_KEY}` or `X-API-Key: {MCP_API_KEY}`.
+- All actions are logged to stderr with the `[AUDIT]` prefix for traceability.
 
-## Better Auth session token
+**Environment Configuration:**
+- `MCP_TRANSPORT=sse`
+- `PORT=5008`
+- `MCP_API_KEY`: Secret token for authentication.
+- `MAIL_ZERO_USER_EMAIL`: Default user email for the MCP instance.
 
-Copy the session cookie from your browser cookies and place it into the Authorization header. You can copy the entire cookie field used in Zero webapp and it will work. Or you can use the format: `better-auth-{env}.session_token={value}`.
-Replace `env` with `dev` for local development, `value` is your session token.
+## Usage with Gemini CLI / Claude Desktop
+
+For local stdio usage:
+```json
+"mail-zero": {
+  "command": "npm",
+  "args": ["run", "mcp"],
+  "cwd": "/Users/florian.scheugenpflug/Projekte/mail-zero-fork/tools/mail-server",
+  "env": {
+    "MAIL_ZERO_USER_EMAIL": "florian.scheugenpflug@lair404.xyz"
+  }
+}
+```
+

@@ -8,11 +8,7 @@ services:
     env_file: .env
     environment:
       NODE_ENV: production
-      VITE_PUBLIC_BACKEND_URL: https://mail.lair404.xyz
-      VITE_PUBLIC_APP_URL: https://mail.lair404.xyz
-      NEXT_PUBLIC_BACKEND_URL: https://mail.lair404.xyz
-      NEXT_PUBLIC_APP_URL: https://mail.lair404.xyz
-    command: ["/bin/sh", "-c", "/app/scripts/replace-placeholder.sh 'http://REPLACE-BACKEND-URL.com' 'https://mail.lair404.xyz' && /app/scripts/replace-placeholder.sh 'http://REPLACE-APP-URL.com' 'https://mail.lair404.xyz' && cd /app/apps/mail/build/client && exec npx --yes serve -s -l 3000"]
+    command: ["/bin/sh", "-c", "/app/scripts/replace-placeholder.sh 'http://REPLACE-BACKEND-URL.com' '' && /app/scripts/replace-placeholder.sh 'http://REPLACE-APP-URL.com' 'https://mail.n1njanode.com' && cd /app/apps/mail/build/client && exec npx --yes serve -s -l 3000"]
     depends_on:
       mail-zero-server:
         condition: service_started
@@ -27,8 +23,8 @@ services:
     networks:
       - mail-zero-net
     labels:
-      - "com.lair404.service=mail-zero"
-      - "com.lair404.port=3050"
+      - "com.n1njanode.service=mail-zero"
+      - "com.n1njanode.port=3050"
 
   mail-zero-server:
     image: ghcr.io/lair404xyz/mail-zero-server-node:latest
@@ -41,15 +37,15 @@ services:
       PORT: "3051"
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:5436/${POSTGRES_DB}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?required}
-      BETTER_AUTH_URL: https://mail.lair404.xyz
+      BETTER_AUTH_URL: https://mail-api.n1njanode.com
       CF_ACCESS_AUD: ${CF_ACCESS_AUD:?required}
       CF_ACCESS_TEAM_DOMAIN: weretrade.cloudflareaccess.com
       IMAP_PROXY_URL: http://127.0.0.1:3060
       IMAP_URL: ${IMAP_URL:?required}
       SMTP_URL: ${SMTP_URL:?required}
-      APP_URL: https://mail.lair404.xyz
-      CORS_ORIGINS: https://mail.lair404.xyz
-      COOKIE_DOMAIN: .lair404.xyz
+      APP_URL: https://mail.n1njanode.com
+      CORS_ORIGINS: https://mail.n1njanode.com
+      COOKIE_DOMAIN: .n1njanode.com
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?required}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?required}
     depends_on:
@@ -64,8 +60,8 @@ services:
       retries: 3
       start_period: 30s
     labels:
-      - "com.lair404.service=mail-zero-server"
-      - "com.lair404.port=3051"
+      - "com.n1njanode.service=mail-zero-server"
+      - "com.n1njanode.port=3051"
 
   mail-zero-imap-proxy:
     image: ghcr.io/lair404xyz/mail-zero-imap-proxy:latest
@@ -82,8 +78,8 @@ services:
       retries: 3
       start_period: 15s
     labels:
-      - "com.lair404.service=mail-zero-imap-proxy"
-      - "com.lair404.port=3060"
+      - "com.n1njanode.service=mail-zero-imap-proxy"
+      - "com.n1njanode.port=3060"
 
   mail-zero-mcp:
     image: ghcr.io/lair404xyz/mail-zero-server-node:latest
@@ -107,8 +103,8 @@ services:
       retries: 3
       start_period: 15s
     labels:
-      - "com.lair404.service=mail-zero-mcp"
-      - "com.lair404.port=5008"
+      - "com.n1njanode.service=mail-zero-mcp"
+      - "com.n1njanode.port=5008"
 
   mail-zero-db:
     image: postgres:17-alpine
@@ -131,7 +127,7 @@ services:
     networks:
       - mail-zero-net
     labels:
-      - "com.lair404.service=mail-zero-db"
+      - "com.n1njanode.service=mail-zero-db"
 
   mail-zero-valkey:
     image: docker.io/bitnami/valkey:latest
@@ -150,7 +146,7 @@ services:
     networks:
       - mail-zero-net
     labels:
-      - "com.lair404.service=mail-zero-valkey"
+      - "com.n1njanode.service=mail-zero-valkey"
 
   mail-zero-upstash-proxy:
     image: hiett/serverless-redis-http:latest
@@ -168,7 +164,7 @@ services:
     networks:
       - mail-zero-net
     labels:
-      - "com.lair404.service=mail-zero-upstash-proxy"
+      - "com.n1njanode.service=mail-zero-upstash-proxy"
 
 networks:
   mail-zero-net:

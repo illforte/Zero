@@ -5,13 +5,16 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { WebSocketServer } from 'ws';
 import { createOpenAI } from '@ai-sdk/openai';
-import { streamText } from 'ai';
+import { streamText, tool } from 'ai';
+import { z } from 'zod';
 import { env } from './env.js';
 import { getAuth } from './auth.js';
-import { getDb } from './db/index.js';
+import { getDb, schema } from './db/index.js';
 import { appRouter } from './trpc/index.js';
 import { cfAccessAuthRouter } from './routes/cf-access-auth.js';
 import { googleOAuthRouter } from './routes/google-oauth.js';
+import { createDriver } from './driver/index.js';
+import { eq } from 'drizzle-orm';
 import type { HonoContext } from './types.js';
 import type { TrpcContext } from './trpc/context.js';
 import type { Context } from 'hono';
@@ -108,8 +111,250 @@ const wss = new WebSocketServer({ noServer: true });
   }
 });
 
-wss.on('connection', (ws) => {
+wss.on('connection', async (ws, req) => {
   const sessions = new Map<string, AbortController>();
+
+  // Authenticate user once per connection
+  const authHeaders = new Headers();
+  Object.entries(req.headers).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((v) => authHeaders.append(key, v));
+    } else if (value) {
+      authHeaders.set(key, value);
+    }
+  });
+
+  const session = await auth.api
+    .getSession({ headers: authHeaders })
+    .catch(() => null);
+
+  if (!session?.user) {
+    ws.close(1008, 'Unauthorized');
+    return;
+  }
+
+  const userId = session.user.id;
+  const db = getDb();
+
+  // Get user's default connection or first available
+  const userData = await db.query.user.findFirst({
+    where: eq(schema.user.id, userId),
+  });
+
+  let activeConnection = null;
+  if (userData?.defaultConnectionId) {
+    activeConnection = await db.query.connection.findFirst({
+      where: eq(schema.connection.id, userData.defaultConnectionId),
+    });
+  }
+
+  if (!activeConnection) {
+    activeConnection = await db.query.connection.findFirst({
+      where: eq(schema.connection.userId, userId),
+    });
+  }
+
+  if (!activeConnection) {
+    ws.close(1008, 'No mail connection found');
+    return;
+  }
+
+  const driver = createDriver(activeConnection.providerId, {
+    auth: {
+      userId: activeConnection.userId,
+      accessToken: activeConnection.accessToken || '',
+      refreshToken: activeConnection.refreshToken || '',
+      email: activeConnection.email,
+    },
+  });
+
+  // Tools available for this connection
+  const mailTools = {
+    searchEmails: tool({
+      description: 'Search for email threads based on a query (Gmail search syntax supported).',
+      parameters: z.object({
+        query: z.string().describe('The search query (e.g., "from:google", "subject:invoice")'),
+        maxResults: z.number().optional().default(10),
+      }),
+      execute: async ({ query, maxResults }) => {
+        const results = await driver.list({ folder: 'inbox', query, maxResults });
+        return await Promise.all(
+          results.threads.map(async (t) => {
+            try {
+              const thread = await driver.get(t.id);
+              return {
+                id: t.id,
+                subject: thread.latest?.subject,
+                from: thread.latest?.sender.email,
+                date: thread.latest?.receivedOn,
+                unread: thread.hasUnread,
+              };
+            } catch {
+              return { id: t.id, error: 'Failed to fetch details' };
+            }
+          })
+        );
+      },
+    }),
+    deleteThreads: tool({
+      description: 'Move email threads to the trash.',
+      parameters: z.object({
+        threadIds: z.array(z.string()).describe('Array of thread IDs to move to trash'),
+      }),
+      execute: async ({ threadIds }) => {
+        const { threadIds: normalizedIds } = driver.normalizeIds(threadIds);
+        await driver.modifyLabels(normalizedIds, { addLabels: ['TRASH'], removeLabels: [] });
+        return { success: true, deletedCount: normalizedIds.length };
+      },
+    }),
+    markAsRead: tool({
+      description: 'Mark email threads as read.',
+      parameters: z.object({
+        threadIds: z.array(z.string()).describe('Array of thread IDs to mark as read'),
+      }),
+      execute: async ({ threadIds }) => {
+        const { threadIds: normalizedIds } = driver.normalizeIds(threadIds);
+        await driver.markAsRead(normalizedIds);
+        return { success: true };
+      },
+    }),
+    markAsUnread: tool({
+      description: 'Mark email threads as unread.',
+      parameters: z.object({
+        threadIds: z.array(z.string()).describe('Array of thread IDs to mark as unread'),
+      }),
+      execute: async ({ threadIds }) => {
+        const { threadIds: normalizedIds } = driver.normalizeIds(threadIds);
+        await driver.markAsUnread(normalizedIds);
+        return { success: true };
+      },
+    }),
+    archiveThreads: tool({
+      description: 'Move email threads to the archive by removing the INBOX label.',
+      parameters: z.object({
+        threadIds: z.array(z.string()).describe('Array of thread IDs to archive'),
+      }),
+      execute: async ({ threadIds }) => {
+        const { threadIds: normalizedIds } = driver.normalizeIds(threadIds);
+        await driver.modifyLabels(normalizedIds, { addLabels: [], removeLabels: ['INBOX'] });
+        return { success: true, archivedCount: normalizedIds.length };
+      },
+    }),
+    getEmailContent: tool({
+      description: 'Get the full content (messages) of an email thread by ID.',
+      parameters: z.object({
+        threadId: z.string().describe('The ID of the thread to retrieve'),
+      }),
+      execute: async ({ threadId }) => {
+        const thread = await driver.get(threadId);
+        return thread.messages.map((m) => ({
+          from: m.sender.email,
+          subject: m.subject,
+          date: m.receivedOn,
+          body: m.decodedBody || m.body,
+        }));
+      },
+    }),
+    sendEmail: tool({
+      description: 'Send a new email.',
+      parameters: z.object({
+        to: z.array(z.object({
+          email: z.string().describe('Recipient email address'),
+          name: z.string().optional().describe('Recipient name'),
+        })),
+        subject: z.string().describe('Email subject'),
+        body: z.string().describe('Email body (HTML or plain text)'),
+        threadId: z.string().optional().describe('Thread ID to reply to'),
+      }),
+      execute: async (data) => {
+        await driver.create({
+          to: data.to,
+          subject: data.subject,
+          message: data.body,
+          threadId: data.threadId,
+          attachments: [],
+          headers: {},
+        });
+        return { success: true };
+      },
+    }),
+    createDraft: tool({
+      description: 'Create a draft email.',
+      parameters: z.object({
+        to: z.string().describe('Recipient email(s) separated by commas'),
+        subject: z.string().describe('Email subject'),
+        body: z.string().describe('Email body'),
+        threadId: z.string().optional().nullable().describe('Thread ID'),
+      }),
+      execute: async (data) => {
+        await driver.createDraft({
+          to: data.to,
+          subject: data.subject,
+          message: data.body,
+          threadId: data.threadId || null,
+          id: null,
+          fromEmail: activeConnection.email,
+        });
+        return { success: true };
+      },
+    }),
+    listLabels: tool({
+      description: 'List all available mail labels/folders.',
+      parameters: z.object({}),
+      execute: async () => {
+        const labels = await driver.getUserLabels();
+        return labels.map(l => ({ id: l.id, name: l.name, type: l.type }));
+      },
+    }),
+    moveThreads: tool({
+      description: 'Move threads to a specific label (folder).',
+      parameters: z.object({
+        threadIds: z.array(z.string()).describe('Array of thread IDs to move'),
+        addLabels: z.array(z.string()).describe('Labels to add (e.g., ["INBOX", "IMPORTANT"])'),
+        removeLabels: z.array(z.string()).describe('Labels to remove (e.g., ["SPAM"])'),
+      }),
+      execute: async ({ threadIds, addLabels, removeLabels }) => {
+        const { threadIds: normalizedIds } = driver.normalizeIds(threadIds);
+        await driver.modifyLabels(normalizedIds, { addLabels, removeLabels });
+        return { success: true };
+      },
+    }),
+    unsubscribe: tool({
+      description: 'Attempt to unsubscribe from a mailing list for a specific thread.',
+      parameters: z.object({
+        threadId: z.string().describe('The ID of the thread to unsubscribe from'),
+      }),
+      execute: async ({ threadId }) => {
+        const thread = await driver.get(threadId);
+        const lastMsg = thread.messages[thread.messages.length - 1];
+        if (!lastMsg?.listUnsubscribe) {
+          return { success: false, error: 'No unsubscribe headers found for this thread.' };
+        }
+        
+        // Handle Mailto or HTTP unsubscribe
+        const urls = lastMsg.listUnsubscribe.split(',').map(s => s.trim().replace(/[<>]/g, ''));
+        const mailto = urls.find(u => u.startsWith('mailto:'));
+        const http = urls.find(u => u.startsWith('http'));
+
+        if (http) {
+          // In a real scenario, we might want to follow the link, but for now we just report it.
+          return { success: true, method: 'link', url: http, message: 'Please visit the link to unsubscribe.' };
+        } else if (mailto) {
+          const [to, query] = mailto.replace('mailto:', '').split('?');
+          const subject = query?.match(/subject=([^&]+)/)?.[1] || 'Unsubscribe';
+          await driver.create({
+            to: [{ email: decodeURIComponent(to!) }],
+            subject: decodeURIComponent(subject),
+            message: 'Unsubscribe request sent via Mail-Zero assistant.',
+            attachments: [],
+            headers: {},
+          });
+          return { success: true, method: 'email', message: 'Unsubscribe email sent.' };
+        }
+        return { success: false, error: 'Unsupported unsubscribe method.' };
+      },
+    }),
+  };
 
   ws.on('message', async (data: import('ws').RawData) => {
     let msg: Record<string, unknown>;
@@ -136,8 +381,13 @@ wss.on('connection', (ws) => {
         const { textStream } = streamText({
           model: litellm(env.LITELLM_MODEL),
           system:
-            'You are a helpful email assistant. Help the user manage, read, summarize, and respond to their emails. Be concise and professional.',
+            'You are a helpful email assistant. Help the user manage, read, summarize, and respond to their emails. ' +
+            'You have tools to search, read, and delete emails. ' +
+            'When asked to delete emails, ALWAYS search for them first to confirm the IDs, then delete. ' +
+            'Be concise and professional.',
           messages: messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+          tools: mailTools,
+          maxSteps: 5,
           abortSignal: abortController.signal,
         });
 

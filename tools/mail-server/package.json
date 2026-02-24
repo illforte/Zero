@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "mcp": "tsx src/mcp-server.ts",
     "start": "node dist/index.js",
     "build": "tsc",
     "db:push": "drizzle-kit push"
@@ -14,12 +15,15 @@
     "@googleapis/people": "^1.0.0",
     "@hono/node-server": "^1.14.0",
     "@hono/trpc-server": "^0.3.4",
+    "@modelcontextprotocol/sdk": "^1.27.0",
     "@trpc/server": "^11.0.0",
+    "@types/express": "^5.0.6",
     "@types/ws": "8.18.1",
     "ai": "4.3.16",
     "better-auth": "^1.2.0",
     "cheerio": "1.1.0",
     "drizzle-orm": "^0.39.0",
+    "express": "^5.2.1",
     "google-auth-library": "^9.0.0",
     "he": "^1.2.0",
     "hono": "^4.7.12",
@@ -33,6 +37,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
     "@types/he": "^1.2.3",
     "@types/node": "^22.10.5",
     "@types/sanitize-html": "^2.13.0",
