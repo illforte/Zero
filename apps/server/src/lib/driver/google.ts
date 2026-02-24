@@ -182,18 +182,7 @@ export class GoogleMailManager implements MailManager {
     return this.withErrorHandler(
       'markAsRead',
       async () => {
-        const finalIds = (
-          await Promise.all(
-            threadIds.map(async (id) => {
-              const threadMetadata = await this.getThreadMetadata(id);
-              return threadMetadata.messages
-                .filter((msg) => msg.labelIds && msg.labelIds.includes('UNREAD'))
-                .map((msg) => msg.id);
-            }),
-          ).then((idArrays) => [...new Set(idArrays.flat())])
-        ).filter((id): id is string => id !== undefined);
-
-        await this.modifyThreadLabels(finalIds, { removeLabelIds: ['UNREAD'] });
+        await this.modifyThreadLabels(threadIds, { removeLabelIds: ['UNREAD'] });
       },
       { threadIds },
     );
@@ -202,17 +191,7 @@ export class GoogleMailManager implements MailManager {
     return this.withErrorHandler(
       'markAsUnread',
       async () => {
-        const finalIds = (
-          await Promise.all(
-            threadIds.map(async (id) => {
-              const threadMetadata = await this.getThreadMetadata(id);
-              return threadMetadata.messages
-                .filter((msg) => msg.labelIds && !msg.labelIds.includes('UNREAD'))
-                .map((msg) => msg.id);
-            }),
-          ).then((idArrays) => [...new Set(idArrays.flat())])
-        ).filter((id): id is string => id !== undefined);
-        await this.modifyThreadLabels(finalIds, { addLabelIds: ['UNREAD'] });
+        await this.modifyThreadLabels(threadIds, { addLabelIds: ['UNREAD'] });
       },
       { threadIds },
     );
