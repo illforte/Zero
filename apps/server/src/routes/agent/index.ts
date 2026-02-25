@@ -1890,6 +1890,7 @@ export class ZeroAgent extends AIChatAgent<ZeroEnv> {
     currentThreadId: string,
     currentFolder: string,
     currentFilter: string,
+    abortSignal?: AbortSignal,
   ) {
     const dataStreamResponse = createDataStreamResponse({
       execute: async (dataStream) => {
@@ -1905,13 +1906,21 @@ export class ZeroAgent extends AIChatAgent<ZeroEnv> {
         };
 
         const tools = orchestrator.processTools(rawTools);
+
+        const executeFunctions: Record<string, any> = {};
+        for (const [name, toolInstance] of Object.entries(tools)) {
+          if (toolInstance.execute) {
+            executeFunctions[name] = toolInstance.execute;
+          }
+        }
+
         const processedMessages = await processToolCalls(
           {
             messages: this.messages,
             dataStream,
             tools,
           },
-          {},
+          executeFunctions,
         );
 
         const model = getModel(undefined, {
@@ -1925,6 +1934,7 @@ export class ZeroAgent extends AIChatAgent<ZeroEnv> {
           messages: processedMessages,
           tools,
           onFinish,
+          abortSignal,
           onError: (error) => {
             console.error('Error in streamText', error);
           },
@@ -2016,7 +2026,7 @@ export class ZeroAgent extends AIChatAgent<ZeroEnv> {
           await this.persistMessages(messages, [connection.id]);
 
           const chatMessageId = data.id;
-          //   const abortSignal = this.getAbortSignal(chatMessageId);
+          const abortSignal = this.getAbortSignal(chatMessageId);
 
           return this.tryCatchChat(async () => {
             const response = await this.onChatMessageWithContext(
@@ -2032,6 +2042,7 @@ export class ZeroAgent extends AIChatAgent<ZeroEnv> {
               threadId,
               currentFolder,
               currentFilter,
+              abortSignal,
             );
 
             if (response) {
@@ -2108,7 +2119,7 @@ export class ZeroAgent extends AIChatAgent<ZeroEnv> {
     // now take chunks out from dataStreamResponse and send them to the client
     return this.tryCatchChat(async () => {
       for await (const chunk of response.body!) {
-        const body = decoder.decode(chunk);
+        const body = decoder.decode(chunk, { stream: true });
 
         this.broadcastChatMessage({
           id,
@@ -2121,7 +2132,7 @@ export class ZeroAgent extends AIChatAgent<ZeroEnv> {
       this.broadcastChatMessage({
         id,
         type: OutgoingMessageType.UseChatResponse,
-        body: '',
+        body: decoder.decode(),
         done: true,
       });
     });
@@ -2139,7 +2150,14 @@ export class ZeroAgent extends AIChatAgent<ZeroEnv> {
     currentThreadId: string,
     currentFolder: string,
     currentFilter: string,
+    abortSignal?: AbortSignal,
   ) {
-    return this.getDataStreamResponse(onFinish, currentThreadId, currentFolder, currentFilter);
+    return this.getDataStreamResponse(
+      onFinish,
+      currentThreadId,
+      currentFolder,
+      currentFilter,
+      abortSignal,
+    );
   }
 }
