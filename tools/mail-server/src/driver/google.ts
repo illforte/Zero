@@ -10,7 +10,7 @@ import he from 'he';
 
 // ─── Inlined utilities from apps/server/src/lib/driver/utils.ts ─────────────
 
-const FatalErrors = ['invalid_grant'];
+const FatalErrors = new Set(['invalid_grant']);
 
 export const fromBase64Url = (str: string) => str.replace(/-/g, '+').replace(/_/g, '/');
 

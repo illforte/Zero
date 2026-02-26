@@ -1,12 +1,3 @@
-// import {
-//   Dialog,
-//   DialogContent,
-//   DialogDescription,
-//   DialogFooter,
-//   DialogHeader,
-//   DialogTitle,
-//   DialogTrigger,
-// } from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuItem,
@@ -18,88 +9,31 @@ import { Bell, Lightning, Mail, ScanEye, Tag, User, X, Search } from '../icons/i
 import { useCategorySettings, useDefaultCategoryId } from '@/hooks/use-categories';
 import { ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { useCommandPalette } from '../context/command-palette-context';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, RefreshCcw } from 'lucide-react';
-
+import { useHotkeys, useHotkeysContext } from 'react-hotkeys-hook';
 import { ThreadDisplay } from '@/components/mail/thread-display';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useActiveConnection } from '@/hooks/use-connections';
-// import { useMutation, useQuery } from '@tanstack/react-query';
-// import { useTRPC } from '@/providers/query-provider';
-
+import { Check, ChevronDown, RefreshCcw } from 'lucide-react';
 import { useMediaQuery } from '../../hooks/use-media-query';
-
 import useSearchLabels from '@/hooks/use-labels-search';
 import * as CustomIcons from '@/components/icons/icons';
-import { isMac } from '@/lib/hotkeys/use-hotkey-utils';
 import { MailList } from '@/components/mail/mail-list';
-import { useHotkeysContext } from 'react-hotkeys-hook';
-// import SelectAllCheckbox from './select-all-checkbox';
 import { useNavigate, useParams } from 'react-router';
 import { useMail } from '@/components/mail/use-mail';
 import { SidebarToggle } from '../ui/sidebar-toggle';
 import { PricingDialog } from '../ui/pricing-dialog';
-// import { Textarea } from '@/components/ui/textarea';
-// import { useBrainState } from '@/hooks/use-summary';
 import { clearBulkSelectionAtom } from './use-mail';
 import AISidebar from '@/components/ui/ai-sidebar';
 import { useThreads } from '@/hooks/use-threads';
-// import { useBilling } from '@/hooks/use-billing';
 import AIToggleButton from '../ai-toggle-button';
 import { useIsMobile } from '@/hooks/use-mobile';
-// import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { useLabels } from '@/hooks/use-labels';
 import { useSession } from '@/lib/auth-client';
-// import { ScrollArea } from '../ui/scroll-area';
-// import { Label } from '@/components/ui/label';
-// import { Input } from '@/components/ui/input';
-
-import { cn } from '@/lib/utils';
-
 import { m } from '@/paraglide/messages';
+import { isMac } from '@/lib/platform';
 import { useQueryState } from 'nuqs';
+import { cn } from '@/lib/utils';
 import { useAtom } from 'jotai';
-// import { toast } from 'sonner';
-
-// interface ITag {
-//   id: string;
-//   name: string;
-//   usecase: string;
-//   text: string;
-// }
-
-export const defaultLabels = [
-  {
-    name: 'to respond',
-    usecase: 'emails you need to respond to. NOT sales, marketing, or promotions.',
-  },
-  {
-    name: 'FYI',
-    usecase:
-      'emails that are not important, but you should know about. NOT sales, marketing, or promotions.',
-  },
-  {
-    name: 'comment',
-    usecase:
-      'Team chats in tools like Google Docs, Slack, etc. NOT marketing, sales, or promotions.',
-  },
-  {
-    name: 'notification',
-    usecase: 'Automated updates from services you use. NOT sales, marketing, or promotions.',
-  },
-  {
-    name: 'promotion',
-    usecase: 'Sales, marketing, cold emails, special offers or promotions. NOT to respond to.',
-  },
-  {
-    name: 'meeting',
-    usecase: 'Calendar events, invites, etc. NOT sales, marketing, or promotions.',
-  },
-  {
-    name: 'billing',
-    usecase: 'Billing notifications. NOT sales, marketing, or promotions.',
-  },
-];
 
 // const AutoLabelingSettings = () => {
 //   const trpc = useTRPC();
@@ -428,13 +362,13 @@ export function MailLayout() {
     };
   }, [threadId, enableScope, disableScope]);
 
-  const handleMailListMouseEnter = useCallback(() => {
-    enableScope('mail-list');
-  }, [enableScope]);
+  //   const handleMailListMouseEnter = useCallback(() => {
+  //     enableScope('mail-list');
+  //   }, [enableScope]);
 
-  const handleMailListMouseLeave = useCallback(() => {
-    disableScope('mail-list');
-  }, [disableScope]);
+  //   const handleMailListMouseLeave = useCallback(() => {
+  //     disableScope('mail-list');
+  //   }, [disableScope]);
 
   // Add mailto protocol handler registration
   useEffect(() => {
@@ -458,10 +392,30 @@ export function MailLayout() {
   const defaultCategoryId = useDefaultCategoryId();
   const [category] = useQueryState('category', { defaultValue: defaultCategoryId });
 
+  const handleClearFilters = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      clearAllFilters();
+    },
+    [clearAllFilters],
+  );
+
+  const handleExitBulkSelection = useCallback(() => {
+    setMail({ ...mail, bulkSelected: [] });
+  }, [mail, setMail]);
+
+  const handleRefetchThreads = useCallback(() => {
+    refetchThreads();
+  }, [refetchThreads]);
+
+  const handleOpenCommandPalette = useCallback(() => {
+    setIsCommandPaletteOpen('true');
+  }, [setIsCommandPaletteOpen]);
+
   return (
     <TooltipProvider delayDuration={0}>
       <PricingDialog />
-      <div className="rounded-inherit relative z-5 flex p-0 md:mr-0.5 md:mt-1">
+      <div className="rounded-inherit z-5 relative flex p-0 md:mr-0.5 md:mt-1">
         <ResizablePanelGroup
           direction="horizontal"
           autoSaveId="mail-panel-layout"
@@ -475,118 +429,111 @@ export function MailLayout() {
               `bg-panelLight dark:bg-panelDark mb-1 w-fit shadow-sm md:mr-[3px] md:rounded-2xl lg:flex lg:h-[calc(100dvh-8px)] lg:shadow-sm`,
               isDesktop && threadId && 'hidden lg:block',
             )}
-            onMouseEnter={handleMailListMouseEnter}
-            onMouseLeave={handleMailListMouseLeave}
+            // onMouseEnter={handleMailListMouseEnter}
+            // onMouseLeave={handleMailListMouseLeave}
           >
             <div className="w-full md:h-[calc(100dvh-10px)]">
-              <div
-                className={cn(
-                  'sticky top-0 z-15 flex items-center justify-between gap-1.5 p-2 pb-0 transition-colors',
-                )}
-              >
-                <div className="w-full">
-                  <div className="grid grid-cols-12 gap-2 mt-1">
-                    <SidebarToggle className="col-span-1 h-fit px-2" />
-                    {mail.bulkSelected.length === 0 ? (
-                      <div className="col-span-10 flex gap-2">
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            'text-muted-foreground relative flex h-8 w-full select-none items-center justify-start overflow-hidden rounded-lg border bg-white pl-2 text-left text-sm font-normal shadow-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 dark:border-none dark:bg-[#141414]',
-                          )}
-                          onClick={() => setIsCommandPaletteOpen('true')}
-                        >
-                          <Search className="fill-[#71717A] dark:fill-[#6F6F6F]" />
+              <div className="z-15 sticky top-0 p-4 pb-0">
+                <div className="flex items-center gap-2">
+                  <SidebarToggle className="h-10 w-10" />
 
-                          <span className="hidden truncate pr-20 lg:inline-block">
-                            {activeFilters.length > 0
-                              ? activeFilters.map((f) => f.display).join(', ')
-                              : 'Search'}
-                          </span>
-                          <span className="inline-block truncate pr-20 lg:hidden">
-                            {activeFilters.length > 0
-                              ? `${activeFilters.length} filter${activeFilters.length > 1 ? 's' : ''}`
-                              : 'Search'}
-                          </span>
+                  {mail.bulkSelected.length === 0 ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          'text-muted-foreground border-border/40 bg-background/50 hover:bg-accent/30 focus-visible:ring-ring dark:border-border/20 dark:bg-background/40 relative flex h-10 flex-1 select-none items-center justify-start overflow-hidden rounded-lg border pl-3 text-left text-sm font-normal shadow-none ring-0 backdrop-blur-sm transition-all focus-visible:ring-2 focus-visible:ring-offset-2',
+                        )}
+                        onClick={handleOpenCommandPalette}
+                      >
+                        <Search className="fill-muted-foreground h-4 w-4" />
 
-                          <span className="absolute right-[0rem] flex items-center gap-1">
-                            {/* {activeFilters.length > 0 && (
+                        <span className="ml-3 hidden truncate pr-20 lg:inline-block">
+                          {activeFilters.length > 0
+                            ? activeFilters.map((f) => f.display).join(', ')
+                            : 'Search'}
+                        </span>
+                        <span className="ml-3 inline-block truncate pr-20 lg:hidden">
+                          {activeFilters.length > 0
+                            ? `${activeFilters.length} filter${activeFilters.length > 1 ? 's' : ''}`
+                            : 'Search'}
+                        </span>
+
+                        <div className="absolute right-2 flex items-center gap-2">
+                          {/* {activeFilters.length > 0 && (
                             <Badge variant="secondary" className="ml-2 h-5 rounded px-1">
                               {activeFilters.length}
                             </Badge>
                           )} */}
-                            {activeFilters.length > 0 && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="my-auto h-5 rounded-xl px-1.5 text-xs"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  clearAllFilters();
-                                }}
-                              >
-                                Clear
-                              </Button>
-                            )}
-                            <kbd className="bg-muted text-md pointer-events-none mr-0.5 hidden h-7 select-none flex-row items-center gap-1 rounded-md border-none px-2 font-medium leading-[0]! opacity-100 sm:flex dark:bg-[#262626] dark:text-[#929292]">
-                              <span
-                                className={cn(
-                                  'h-min leading-[0.2]!',
-                                  isMac ? 'mt-px text-lg' : 'text-sm',
-                                )}
-                              >
-                                {isMac ? '⌘' : 'Ctrl'}{' '}
-                              </span>
-                              <span className="h-min text-sm leading-[0.2]!"> K</span>
-                            </kbd>
-                          </span>
-                        </Button>
-                        {activeConnection?.providerId === 'google' && folder === 'inbox' && (
-                          <CategoryDropdown isMultiSelectMode={mail.bulkSelected.length > 0} />
-                        )}
-                      </div>
-                    ) : null}
-                    <Button
-                      onClick={() => {
-                        refetchThreads();
-                      }}
-                      variant="ghost"
-                      className="md:h-fit md:px-2"
-                    >
-                      <RefreshCcw className="text-muted-foreground h-4 w-4 cursor-pointer" />
-                    </Button>
-                    {mail.bulkSelected.length > 0 ? (
-                      <div className="flex items-center gap-2">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              onClick={() => {
-                                setMail({ ...mail, bulkSelected: [] });
-                              }}
-                              className="flex h-6 items-center gap-1 rounded-md bg-[#313131] px-2 text-xs text-[#A0A0A0] hover:bg-[#252525]"
+                          {activeFilters.length > 0 && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="h-6 rounded-md px-2 text-xs"
+                              onClick={handleClearFilters}
                             >
-                              <X className="h-3 w-3 fill-[#A0A0A0]" />
-                              <span>esc</span>
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {m['common.actions.exitSelectionModeEsc']()}
-                          </TooltipContent>
-                        </Tooltip>
+                              Clear
+                            </Button>
+                          )}
+                          <kbd className="bg-muted border-border/40 dark:bg-muted/40 pointer-events-none hidden h-6 select-none items-center gap-1 rounded border px-2 text-xs font-medium opacity-80 sm:flex">
+                            <span className={cn('text-xs', isMac ? 'text-sm' : 'text-xs')}>
+                              {isMac ? '⌘' : 'Ctrl'}
+                            </span>
+                            <span className="text-xs">K</span>
+                          </kbd>
+                        </div>
+                      </Button>
+
+                      {activeConnection?.providerId === 'google' && folder === 'inbox' && (
+                        <CategoryDropdown isMultiSelectMode={mail.bulkSelected.length > 0} />
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex flex-1 items-center justify-between">
+                      <div className="text-foreground text-sm font-medium">
+                        {mail.bulkSelected.length} selected
                       </div>
-                    ) : null}
-                  </div>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleExitBulkSelection}
+                            className="h-8 gap-2 rounded-lg"
+                          >
+                            <X className="h-3 w-3" />
+                            <span className="text-xs">ESC</span>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {m['common.actions.exitSelectionModeEsc']()}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  )}
+
+                  <Button
+                    onClick={handleRefetchThreads}
+                    variant="ghost"
+                    size="icon"
+                    className="border-none bg-transparent hover:bg-accent/50 h-10 w-10 rounded-lg backdrop-blur-sm"
+                  >
+                    <RefreshCcw className="text-muted-foreground h-4 w-4" />
+                  </Button>
                 </div>
               </div>
 
-              <div
-                className={cn(
-                  `${category === 'Important' ? 'bg-[#F59E0D]' : category === 'All Mail' ? 'bg-[#006FFE]' : category === 'Personal' ? 'bg-[#39ae4a]' : category === 'Updates' ? 'bg-[#8B5CF6]' : category === 'Promotions' ? 'bg-[#F43F5E]' : category === 'Unread' ? 'bg-[#FF4800]' : 'bg-[#F59E0D]'}`,
-                  'relative z-5 h-0.5 w-full transition-opacity',
-                  isFetching ? 'opacity-100' : 'opacity-0',
-                )}
-              />
-              <div className="relative z-1 h-[calc(100dvh-(2px+2px))] overflow-hidden pt-0 md:h-[calc(100dvh-4rem)]">
+              <div className="px-4 pt-2">
+                <div
+                  className={cn(
+                    `${category === 'Important' ? 'bg-[#F59E0D]' : category === 'All Mail' ? 'bg-[#006FFE]' : category === 'Personal' ? 'bg-[#39ae4a]' : category === 'Updates' ? 'bg-[#8B5CF6]' : category === 'Promotions' ? 'bg-[#F43F5E]' : category === 'Unread' ? 'bg-[#FF4800]' : 'bg-[#F59E0D]'}`,
+                    'h-0.5 w-full rounded-full transition-opacity',
+                    isFetching ? 'opacity-100' : 'opacity-0',
+                  )}
+                />
+              </div>
+
+              <div className="z-1 relative h-[calc(100dvh-(2px+2px))] overflow-hidden pt-0 md:h-[calc(100dvh-4rem)]">
                 <MailList />
               </div>
             </div>
@@ -627,6 +574,14 @@ export function MailLayout() {
       </div>
     </TooltipProvider>
   );
+}
+
+interface CategoryItem {
+  id: string;
+  name: string;
+  searchValue: string;
+  icon?: React.ReactNode;
+  colors?: string;
 }
 
 export const Categories = () => {
@@ -727,35 +682,75 @@ export const Categories = () => {
           ),
         };
       default:
-        return base as any;
+        return base;
     }
   });
 
-  return categories;
+  return categories as CategoryItem[];
 };
 interface CategoryDropdownProps {
   isMultiSelectMode?: boolean;
 }
 
 function CategoryDropdown({ isMultiSelectMode }: CategoryDropdownProps) {
-  const { systemLabels } = useLabels();
+  const categorySettings = useCategorySettings();
   const { setLabels, labels } = useSearchLabels();
   const params = useParams<{ folder: string }>();
   const folder = params?.folder ?? 'inbox';
   const [isOpen, setIsOpen] = useState(false);
 
-  if (folder !== 'inbox' || isMultiSelectMode) return null;
+  useHotkeys(
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
+    (key) => {
+      const category = categorySettings[Number(key.key) - 1];
+      if (!category) return;
+      const isCurrentlyActive = labels.includes(category.searchValue);
 
-  const handleLabelChange = (labelId: string) => {
-    const index = labels.indexOf(labelId);
-    if (index !== -1) {
-      const newLabels = [...labels];
-      newLabels.splice(index, 1);
-      setLabels(newLabels);
+      if (isCurrentlyActive) {
+        setLabels(labels.filter((label) => label !== category.searchValue));
+      } else {
+        setLabels([...labels, category.searchValue]);
+      }
+    },
+    {
+      scopes: ['mail-list'],
+      preventDefault: true,
+      enableOnFormTags: false,
+    },
+  );
+
+  const handleLabelChange = (searchValue: string) => {
+    const trimmed = searchValue.trim();
+    if (!trimmed) {
+      setLabels([]);
+      return;
+    }
+
+    const parsedLabels = trimmed
+      .split(',')
+      .map((label) => label.trim())
+      .filter((label) => label.length > 0);
+
+    if (parsedLabels.length === 0) {
+      setLabels([]);
+      return;
+    }
+
+    const currentLabelsSet = new Set(labels);
+    const parsedLabelsSet = new Set(parsedLabels);
+
+    const allLabelsSelected = parsedLabels.every((label) => currentLabelsSet.has(label));
+
+    if (allLabelsSelected) {
+      const updatedLabels = labels.filter((label) => !parsedLabelsSet.has(label));
+      setLabels(updatedLabels);
     } else {
-      setLabels([...labels, labelId]);
+      const newLabelsSet = new Set([...labels, ...parsedLabels]);
+      setLabels(Array.from(newLabelsSet));
     }
   };
+
+  if (folder !== 'inbox' || isMultiSelectMode) return null;
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
@@ -763,38 +758,52 @@ function CategoryDropdown({ isMultiSelectMode }: CategoryDropdownProps) {
         <Button
           variant="outline"
           className={cn(
-            'black:text-white text-muted-foreground flex h-8 min-w-fit items-center gap-1 rounded-md border-none px-2',
+            'text-muted-foreground border-border/40 bg-background/50 hover:bg-accent/30 dark:border-border/20 dark:bg-background/40 flex h-10 min-w-fit items-center gap-2 rounded-lg border px-3 backdrop-blur-sm transition-all',
           )}
           aria-label="Filter by labels"
           aria-expanded={isOpen}
           aria-haspopup="menu"
         >
-          <span className="text-xs font-medium">Categories</span>
+          <span className="text-sm font-medium">
+            {labels.length > 0
+              ? `${labels.length} View${labels.length > 1 ? 's' : ''}`
+              : m['navigation.settings.categories']()}
+          </span>
           <ChevronDown
-            className={`black:text-white text-muted-foreground h-2 w-2 transition-transform duration-200 ${isOpen ? 'rotate-180' : 'rotate-0'}`}
+            className={cn(
+              'text-muted-foreground h-4 w-4 transition-transform duration-200',
+              isOpen ? 'rotate-180' : 'rotate-0',
+            )}
           />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        className="bg-muted w-48 font-medium dark:bg-[#2C2C2C]"
+        className="border-border/50 bg-muted w-48 rounded-xl border p-2 dark:bg-[#232323]"
         align="start"
         role="menu"
         aria-label="Label filter options"
       >
-        {systemLabels.map((label) => (
+        {categorySettings.map((category) => (
           <DropdownMenuItem
-            key={label.id}
-            className="flex cursor-pointer items-center gap-2 hover:bg-white/10"
+            key={category.id}
+            className="hover:bg-accent/50 flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              handleLabelChange(label.id);
+              handleLabelChange(category.searchValue);
             }}
             role="menuitemcheckbox"
-            aria-checked={labels.includes(label.id)}
+            aria-checked={labels.includes(category.id)}
           >
-            <span className="text-muted-foreground capitalize">{label.name.toLowerCase()}</span>
-            {labels.includes(label.id) && <Check className="ml-auto h-3 w-3" />}
+            <span className="text-foreground font-medium capitalize">
+              {category.name.toLowerCase()}
+            </span>
+            {/* Special case: empty searchValue means "All Mail" - shows everything */}
+            {(category.searchValue === ''
+              ? labels.length === 0
+              : category.searchValue.split(',').some((val) => labels.includes(val))) && (
+              <Check className="text-primary ml-auto h-4 w-4" />
+            )}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

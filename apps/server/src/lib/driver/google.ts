@@ -569,6 +569,19 @@ export class GoogleMailManager implements MailManager {
       { draftId, data },
     );
   }
+  public deleteDraft(draftId: string) {
+    return this.withErrorHandler(
+      'deleteDraft',
+      async () => {
+        await this.gmail.users.drafts.delete({
+          userId: 'me',
+          id: draftId,
+          quotaUser: this.getQuotaUser(),
+        });
+      },
+      { draftId },
+    );
+  }
   public getDraft(draftId: string) {
     return this.withErrorHandler(
       'getDraft',
@@ -699,10 +712,20 @@ export class GoogleMailManager implements MailManager {
 
         if (data.attachments && data.attachments?.length > 0) {
           for (const attachment of data.attachments) {
-            const base64Data = attachment.base64;
+            let base64Data: string | undefined;
+
+            if (typeof (attachment as any)?.base64 === 'string') {
+              base64Data = (attachment as any).base64;
+            } else if (typeof (attachment as any)?.arrayBuffer === 'function') {
+              const buffer = Buffer.from(await (attachment as any).arrayBuffer());
+              base64Data = buffer.toString('base64');
+            }
+
+            if (!base64Data) continue;
+
             msg.addAttachment({
               filename: attachment.name,
-              contentType: attachment.type,
+              contentType: attachment.type || 'application/octet-stream',
               data: base64Data,
             });
           }
@@ -866,6 +889,28 @@ export class GoogleMailManager implements MailManager {
         };
       },
       { email: this.config.auth?.email },
+    );
+  }
+
+  public getRawEmail(messageId: string) {
+    return this.withErrorHandler(
+      'getRawEmail',
+      async () => {
+        const res = await this.gmail.users.messages.get({
+          userId: 'me',
+          id: messageId,
+          format: 'raw',
+          quotaUser: this.config.auth?.email,
+        });
+
+        if (!res.data.raw) {
+          throw new Error('No raw email data found');
+        }
+
+        const rawEmail = Buffer.from(res.data.raw, 'base64').toString('utf-8');
+        return rawEmail;
+      },
+      { messageId, email: this.config.auth?.email },
     );
   }
 
@@ -1209,7 +1254,16 @@ export class GoogleMailManager implements MailManager {
 
     if (attachments?.length > 0) {
       for (const file of attachments) {
-        const base64Content = file.base64;
+        let base64Content: string | undefined;
+
+        if (typeof (file as any)?.base64 === 'string') {
+          base64Content = (file as any).base64;
+        } else if (typeof (file as any)?.arrayBuffer === 'function') {
+          const buffer = Buffer.from(await (file as any).arrayBuffer());
+          base64Content = buffer.toString('base64');
+        }
+
+        if (!base64Content) continue;
 
         msg.addAttachment({
           filename: file.name,

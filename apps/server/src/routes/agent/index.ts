@@ -15,6 +15,15 @@
  */
 
 import {
+  countThreads,
+  countThreadsByLabels,
+  deleteSpamThreads,
+  get,
+  getThreadLabels,
+  modifyThreadLabels,
+  type DB,
+} from './db';
+import {
   appendResponseMessages,
   createDataStreamResponse,
   generateText,
@@ -34,35 +43,38 @@ import {
   type ParsedMessage,
 } from '../../types';
 import type { IGetThreadResponse, IGetThreadsResponse, MailManager } from '../../lib/driver/types';
+import { connectionToDriver, getZeroSocketAgent, reSyncThread } from '../../lib/server-utils';
 import { generateWhatUserCaresAbout, type UserTopic } from '../../lib/analyze/interests';
 import { DurableObjectOAuthClientProvider } from 'agents/mcp/do-oauth-client-provider';
 import { AiChatPrompt, GmailSearchAssistantSystemPrompt } from '../../lib/prompts';
-import { connectionToDriver, getZeroSocketAgent } from '../../lib/server-utils';
 import { Migratable, Queryable, Transfer } from 'dormroom';
 import type { CreateDraftData } from '../../lib/schemas';
-import { withRetry } from '../../lib/gmail-rate-limit';
+import { drizzle } from 'drizzle-orm/durable-sqlite';
 import { getPrompt } from '../../pipelines.effect';
 import { AIChatAgent } from 'agents/ai-chat-agent';
+import { DurableObject } from 'cloudflare:workers';
 import { ToolOrchestrator } from './orchestrator';
+import { eq, desc, isNotNull } from 'drizzle-orm';
+import migrations from './db/drizzle/migrations';
 import { getPromptName } from '../../pipelines';
+import { anthropic } from '@ai-sdk/anthropic';
 import { Agent, type Connection } from 'agents';
 import { env, type ZeroEnv } from '../../env';
 import { connection } from '../../db/schema';
 import type { WSMessage } from 'partyserver';
 import { tools as authTools } from './tools';
 import { processToolCalls } from './utils';
-import { getModel } from '../../lib/ai';
+import { openai } from '@ai-sdk/openai';
+import * as schema from './db/schema';
+import { threads } from './db/schema';
+import { Effect, pipe } from 'effect';
+import { groq } from '@ai-sdk/groq';
 import { createDb } from '../../db';
-import { DriverRpcDO } from './rpc';
 import type { Message } from 'ai';
-import { eq } from 'drizzle-orm';
-import { Effect } from 'effect';
+import { create } from './db';
 
 const decoder = new TextDecoder();
-
-const shouldDropTables = false;
 const maxCount = 20;
-const shouldLoop = env.THREAD_SYNC_LOOP !== 'false';
 
 // Error types for getUserTopics
 export class StorageError extends Error {
@@ -279,649 +291,202 @@ export type FolderSyncEffect = Effect.Effect<
 export type FolderSyncSuccess = FolderSyncResult;
 export type FolderSyncFailure = FolderSyncErrors;
 
-@Migratable({
-  migrations: {
-    1: [
-      `CREATE TABLE IF NOT EXISTS tenants (
-        id TEXT PRIMARY KEY
-      )`,
-    ],
-    2: [
-      `CREATE TABLE IF NOT EXISTS threads (
-            id TEXT PRIMARY KEY,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            thread_id TEXT NOT NULL,
-            provider_id TEXT NOT NULL,
-            latest_sender TEXT,
-            latest_received_on TEXT,
-            latest_subject TEXT,
-            latest_label_ids TEXT,
-            categories TEXT
-        );`,
-    ],
-  },
-})
-@Queryable()
-export class ZeroDriver extends Agent<ZeroEnv> {
-  transfer = new Transfer(this);
-  private foldersInSync: Map<string, boolean> = new Map();
-  private syncThreadsInProgress: Map<string, boolean> = new Map();
-  private driver: MailManager | null = null;
-  private agent: DurableObjectStub<ZeroAgent> | null = null;
+export class ZeroDriver extends Migratable(Queryable(Transfer(DurableObject))) {
+  db: DB;
+  driver: MailManager | undefined;
+  agent: DurableObjectStub<ZeroAgent> | undefined;
+  syncThreadsInProgress = new Map<string, Promise<ThreadSyncResult>>();
+  recipientCache: { contacts: any[]; hash: string } | undefined;
+
   constructor(ctx: DurableObjectState, env: ZeroEnv) {
     super(ctx, env);
-    if (shouldDropTables) this.dropTables();
+    this.db = drizzle(ctx.storage, { schema: migrations });
   }
 
-  getDatabaseSize() {
-    return this.ctx.storage.sql.databaseSize;
+  async onStart() {
+    await this.ctx.storage.deleteAlarm();
+    await this.setupAuth();
   }
 
-  getAllSubjects() {
-    const subjects = this.sql`
-      SELECT latest_subject FROM threads
-      WHERE EXISTS (
-        SELECT 1 FROM json_each(latest_label_ids) WHERE value = 'INBOX'
-      );
-    `;
-    return subjects.map((row) => row.latest_subject) as string[];
+  async setupAuth() {
+    const { db } = createDb(this.env.HYPERDRIVE.connectionString);
+    const conn = await db.query.connection.findFirst({
+      where: eq(connection.id, this.name),
+    });
+
+    if (conn) {
+      this.driver = connectionToDriver(conn);
+      const { stub: agent } = await getZeroAgent(conn.id);
+      this.agent = agent;
+    }
   }
 
-  async getUserTopics(): Promise<UserTopic[]> {
-    // Create the Effect with proper types - no external requirements needed
-    const topicGenerationEffect = Effect.gen(this, function* () {
-      console.log(`[getUserTopics] Starting topic generation for connection: ${this.name}`);
+  async getUserTopics(): Promise<TopicGenerationResult> {
+    const requirements: TopicGenerationRequirements = {
+      storage: this.ctx.storage,
+      agent: this.agent,
+      connectionId: this.name,
+    };
 
-      const result: TopicGenerationResult = {
-        topics: [],
+    const program: TopicGenerationEffect = Effect.gen(function* () {
+      const { storage, agent, connectionId } = yield* Effect.service(TopicGenerationRequirements);
+
+      // 1. Try Cache
+      const cached = yield* Effect.tryPromise({
+        try: () => storage.get<CachedTopics>(TOPIC_CACHE_KEY),
+        catch: (e) => new StorageError('Failed to read topics cache', e),
+      });
+
+      if (cached && Date.now() - cached.timestamp < TOPIC_CACHE_TTL) {
+        console.log(`[getUserTopics] Cache hit for ${connectionId}`);
+        return {
+          topics: cached.topics,
+          cacheHit: true,
+          cacheAge: Date.now() - cached.timestamp,
+          subjectsAnalyzed: 0,
+          existingLabelsCount: 0,
+          labelsCreated: 0,
+          broadcastSent: false,
+        };
+      }
+
+      // 2. Fetch recent thread subjects
+      const db = yield* Effect.service(DB);
+      const recentThreads = yield* Effect.tryPromise({
+        try: () =>
+          db
+            .select({ subject: threads.latestSubject })
+            .from(threads)
+            .orderBy(desc(threads.latestReceivedOn))
+            .limit(100)
+            .execute(),
+        catch: (e) => new LabelRetrievalError('Failed to fetch recent threads', e),
+      });
+
+      const subjects = recentThreads.map((t) => t.subject).filter(Boolean);
+
+      // 3. Generate topics using AI
+      const topics = yield* Effect.tryPromise({
+        try: () => generateWhatUserCaresAbout(subjects),
+        catch: (e) => new TopicGenerationError('AI generation failed', e),
+      });
+
+      // 4. Save to cache
+      yield* Effect.tryPromise({
+        try: () => storage.put(TOPIC_CACHE_KEY, { topics, timestamp: Date.now() }),
+        catch: (e) => new StorageError('Failed to update cache', e),
+      });
+
+      // 5. Broadcast to connected clients if agent is available
+      let broadcastSent = false;
+      if (agent) {
+        yield* Effect.tryPromise({
+          try: () =>
+            agent.broadcastChatMessage({
+              type: OutgoingMessageType.User_Topics,
+            }),
+          catch: (e) => new BroadcastError('Failed to broadcast topics', e),
+        });
+        broadcastSent = true;
+      }
+
+      return {
+        topics,
         cacheHit: false,
-        subjectsAnalyzed: 0,
+        subjectsAnalyzed: subjects.length,
         existingLabelsCount: 0,
         labelsCreated: 0,
+        broadcastSent,
+      };
+    });
+
+    const runnable = program.pipe(
+      Effect.provideService(TopicGenerationRequirements, requirements),
+      Effect.provideService(DB, this.db),
+    );
+
+    return await Effect.runPromise(runnable);
+  }
+
+  async syncThreads(folder: string): Promise<FolderSyncResult> {
+    const requirements: FolderSyncRequirements = {
+      driver: this.driver!,
+      agent: this.agent,
+      connectionId: this.name,
+    };
+
+    const program: FolderSyncEffect = Effect.gen(function* () {
+      const { driver, agent, connectionId } = yield* Effect.service(FolderSyncRequirements);
+
+      const result: FolderSyncResult = {
+        synced: 0,
+        message: `Syncing ${folder}...`,
+        folder,
+        pagesProcessed: 0,
+        totalThreads: 0,
+        successfulSyncs: 0,
+        failedSyncs: 0,
         broadcastSent: false,
       };
 
-      // Check storage first
-      const stored = yield* Effect.tryPromise(() => this.ctx.storage.get(TOPIC_CACHE_KEY)).pipe(
-        Effect.tap(() =>
-          Effect.sync(() => console.log(`[getUserTopics] Checking storage for cached topics`)),
-        ),
-        Effect.catchAll((error) => {
-          console.warn(`[getUserTopics] Failed to get cached topics from storage:`, error);
-          return Effect.succeed(null);
-        }),
-      );
+      console.log(`[syncThreads] Starting sync for ${connectionId}/${folder}`);
 
-      if (stored) {
-        // Type guard to ensure stored is a valid CachedTopics object
-        const isValidCachedTopics = (data: unknown): data is CachedTopics => {
-          return (
-            typeof data === 'object' &&
-            data !== null &&
-            'topics' in data &&
-            'timestamp' in data &&
-            Array.isArray((data as any).topics) &&
-            typeof (data as any).timestamp === 'number'
-          );
-        };
-
-        const cachedTopicsResult = yield* Effect.try({
-          try: () => {
-            if (!isValidCachedTopics(stored)) {
-              throw new Error('Invalid cached data format');
-            }
-            return stored as CachedTopics;
-          },
-          catch: (error) => new Error(`Invalid cached data: ${error}`),
-        }).pipe(
-          Effect.catchAll((error) => {
-            console.warn(`[getUserTopics] Invalid cached data, regenerating:`, error);
-            return Effect.succeed(null);
-          }),
-        );
-
-        if (cachedTopicsResult) {
-          const cacheAge = Date.now() - cachedTopicsResult.timestamp;
-
-          if (cacheAge < TOPIC_CACHE_TTL) {
-            console.log(
-              `[getUserTopics] Using cached topics (age: ${Math.round(cacheAge / 1000 / 60)} minutes)`,
-            );
-            result.topics = cachedTopicsResult.topics;
-            result.cacheHit = true;
-            result.cacheAge = cacheAge;
-            return result;
-          } else {
-            console.log(
-              `[getUserTopics] Cache expired (age: ${Math.round(cacheAge / 1000 / 60)} minutes), regenerating`,
-            );
-          }
-        }
-      }
-
-      // Generate new topics
-      console.log(`[getUserTopics] Generating new topics`);
-      const subjects = this.getAllSubjects();
-      result.subjectsAnalyzed = subjects.length;
-      console.log(`[getUserTopics] Found ${subjects.length} subjects for analysis`);
-
-      let existingLabels: { name: string; id: string }[] = [];
-
-      const existingLabelsResult = yield* Effect.tryPromise(() => this.getUserLabels()).pipe(
-        Effect.tap((labels) =>
-          Effect.sync(() => {
-            result.existingLabelsCount = labels.length;
-            console.log(`[getUserTopics] Retrieved ${labels.length} existing labels`);
-          }),
-        ),
-        Effect.catchAll((error) => {
-          console.warn(
-            `[getUserTopics] Failed to get existing labels for topic generation:`,
-            error,
-          );
-          return Effect.succeed([]);
-        }),
-      );
-
-      existingLabels = existingLabelsResult;
-
-      const topics = yield* Effect.tryPromise(() =>
-        generateWhatUserCaresAbout(subjects, { existingLabels }, this.name),
-      ).pipe(
-        Effect.tap((topics) =>
-          Effect.sync(() => {
-            result.topics = topics;
-            console.log(
-              `[getUserTopics] Generated ${topics.length} topics:`,
-              topics.map((t) => t.topic),
-            );
-          }),
-        ),
-        Effect.catchAll((error) => {
-          console.error(`[getUserTopics] Failed to generate topics:`, error);
-          return Effect.succeed([]);
-        }),
-      );
-
-      if (topics.length > 0) {
-        console.log(`[getUserTopics] Processing ${topics.length} topics`);
-
-        // Ensure labels exist in user account
-        yield* Effect.tryPromise(async () => {
-          try {
-            const existingLabelNames = new Set(
-              existingLabels.map((label) => label.name.toLowerCase()),
-            );
-            let createdCount = 0;
-
-            for (const topic of topics) {
-              const topicName = topic.topic.toLowerCase();
-              if (!existingLabelNames.has(topicName)) {
-                console.log(`[getUserTopics] Creating label for topic: ${topic.topic}`);
-                await this.createLabel({
-                  name: topic.topic,
-                });
-                createdCount++;
-              }
-            }
-            result.labelsCreated = createdCount;
-            console.log(`[getUserTopics] Created ${createdCount} new labels`);
-          } catch (error) {
-            console.error(`[getUserTopics] Failed to ensure topic labels exist:`, error);
-            throw error;
-          }
-        }).pipe(
-          Effect.catchAll((error) => {
-            console.error(`[getUserTopics] Error creating labels:`, error);
-            return Effect.succeed(undefined);
-          }),
-        );
-
-        // Store the result
-        yield* Effect.tryPromise(() =>
-          this.ctx.storage.put(TOPIC_CACHE_KEY, {
-            topics,
-            timestamp: Date.now(),
-          }),
-        ).pipe(
-          Effect.tap(() =>
-            Effect.sync(() => console.log(`[getUserTopics] Stored topics in cache`)),
-          ),
-          Effect.catchAll((error) => {
-            console.error(`[getUserTopics] Failed to store topics in cache:`, error);
-            return Effect.succeed(undefined);
-          }),
-        );
-
-        // Broadcast message if agent exists
-        if (this.agent) {
-          yield* Effect.tryPromise(() =>
-            this.agent!.broadcastChatMessage({
-              type: OutgoingMessageType.User_Topics,
-            }),
-          ).pipe(
-            Effect.tap(() =>
-              Effect.sync(() => {
-                result.broadcastSent = true;
-                console.log(`[getUserTopics] Broadcasted topics update`);
-              }),
-            ),
-            Effect.catchAll((error) => {
-              console.warn(`[getUserTopics] Failed to broadcast topics update:`, error);
-              return Effect.succeed(undefined);
-            }),
-          );
-        } else {
-          console.log(`[getUserTopics] No agent available for broadcasting`);
-        }
-      } else {
-        console.log(`[getUserTopics] No topics generated`);
-      }
-
-      console.log(`[getUserTopics] Completed topic generation for connection: ${this.name}`, {
-        topicsCount: result.topics.length,
-        cacheHit: result.cacheHit,
-        subjectsAnalyzed: result.subjectsAnalyzed,
-        existingLabelsCount: result.existingLabelsCount,
-        labelsCreated: result.labelsCreated,
-        broadcastSent: result.broadcastSent,
+      // 1. Fetch thread list from driver
+      const threadList = yield* Effect.tryPromise({
+        try: () => driver.list({ folder, maxResults: 100 }),
+        catch: (e) => new ThreadListError(`Failed to list threads for ${folder}`, e),
       });
+
+      result.totalThreads = threadList.threads.length;
+
+      // 2. Trigger individual syncs
+      for (const t of threadList.threads) {
+        // We use the existing syncThread method which returns an Effect
+        const syncResult = yield* this.syncThread({ threadId: t.id });
+        if (syncResult.success) {
+          result.successfulSyncs++;
+        } else {
+          result.failedSyncs++;
+        }
+      }
+
+      result.synced = result.successfulSyncs;
+      result.message = `Completed sync for ${folder}: ${result.successfulSyncs} successful, ${result.failedSyncs} failed.`;
+
+      // 3. Final broadcast
+      if (agent) {
+        yield* Effect.tryPromise(() =>
+          agent.broadcastChatMessage({
+            type: OutgoingMessageType.Mail_List,
+            folder,
+          }),
+        );
+        result.broadcastSent = true;
+      }
 
       return result;
     });
 
-    // Run the Effect and extract just the topics for backward compatibility
-    return Effect.runPromise(
-      topicGenerationEffect.pipe(
-        Effect.map((result) => result.topics),
-        Effect.catchAll((error) => {
-          console.error(`[getUserTopics] Critical error in getUserTopics:`, error);
-          return Effect.succeed([]);
-        }),
-      ),
+    return await Effect.runPromise(
+      program.pipe(Effect.provideService(FolderSyncRequirements, requirements)),
     );
   }
 
-  async setMetaData(connectionId: string) {
-    await this.setName(connectionId);
-    this.agent = await getZeroSocketAgent(connectionId);
-    return new DriverRpcDO(this, connectionId);
-  }
-
-  async markAsRead(threadIds: string[]) {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    const result = await this.driver.markAsRead(threadIds);
-
-    // Update local DB to reflect changes immediately
-    try {
-      await Promise.all(threadIds.map((id) => this.modifyThreadLabelsInDB(id, [], ['UNREAD'])));
-    } catch (error) {
-      console.warn('[ZeroDriver] Failed to update local DB after markAsRead:', error);
-    }
-
-    return result;
-  }
-
-  async markAsUnread(threadIds: string[]) {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    const result = await this.driver.markAsUnread(threadIds);
-
-    // Update local DB to reflect changes immediately
-    try {
-      await Promise.all(threadIds.map((id) => this.modifyThreadLabelsInDB(id, ['UNREAD'], [])));
-    } catch (error) {
-      console.warn('[ZeroDriver] Failed to update local DB after markAsUnread:', error);
-    }
-
-    return result;
-  }
-
-  async normalizeIds(ids: string[]) {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return this.driver.normalizeIds(ids);
-  }
-
-  async sendDraft(id: string, data: IOutgoingMessage) {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return await this.driver.sendDraft(id, data);
-  }
-
-  async create(data: IOutgoingMessage) {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return await this.driver.create(data);
-  }
-
-  async delete(id: string) {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    const result = await this.driver.delete(id);
-    await this.deleteThread(id);
-    return result;
-  }
-
-  async deleteAllSpam() {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return await this.driver.deleteAllSpam();
-  }
-
-  async getEmailAliases() {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return await this.driver.getEmailAliases();
-  }
-
-  async getMessageAttachments(messageId: string) {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return await this.driver.getMessageAttachments(messageId);
-  }
-
-  async onConnect() {
-    if (!this.driver) await this.setupAuth();
-  }
-
-  public async setupAuth() {
-    if (this.name === 'general') return;
-    if (!this.driver) {
-      this.agent = await getZeroSocketAgent(this.name);
-      const { db, conn } = createDb(this.env.HYPERDRIVE.connectionString);
-      const _connection = await db.query.connection.findFirst({
-        where: eq(connection.id, this.name),
-      });
-      if (_connection) this.driver = connectionToDriver(_connection);
-      this.ctx.waitUntil(conn.end());
-    }
-  }
-
-  async syncFolders() {
-    if (this.name === 'general') return;
-    // Skip sync for aggregate instances - they should only mirror primary operations
-    // The multi-stub pattern ensures aggregate gets operations in background
-    if (this.name.includes('aggregate')) {
-      console.log('[syncFolders] Skipping sync for aggregate instance');
-      return;
-    }
-
-    const threadCount = await this.getThreadCount();
-    if (threadCount < maxCount) {
-      console.log(
-        `[syncFolders] Starting folder sync for ${this.name} (threadCount: ${threadCount})`,
-      );
-      this.ctx.waitUntil(this.syncThreads('inbox'));
-      this.ctx.waitUntil(this.syncThreads('sent'));
-      this.ctx.waitUntil(this.syncThreads('spam'));
-    } else {
-      console.log(
-        `[syncFolders] Skipping sync for ${this.name} - threadCount (${threadCount}) >= maxCount (${maxCount})`,
-      );
-    }
-  }
-
-  async rawListThreads(params: {
-    folder: string;
-    query?: string;
-    maxResults?: number;
-    labelIds?: string[];
-    pageToken?: string;
-  }): Promise<IGetThreadsResponse> {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return await this.driver.list(params);
-  }
-
-  async getThread(threadId: string, includeDrafts: boolean = false) {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return await this.getThreadFromDB(threadId, includeDrafts);
-  }
-
-  //   async markThreadsRead(threadIds: string[]) {
-  //     if (!this.driver) {
-  //       throw new Error('No driver available');
-  //     }
-  //     return await this.driver.modifyLabels(threadIds, {
-  //       addLabels: [],
-  //       removeLabels: ['UNREAD'],
-  //     });
-  //   }
-
-  //   async markThreadsUnread(threadIds: string[]) {
-  //     if (!this.driver) {
-  //       throw new Error('No driver available');
-  //     }
-  //     return await this.driver.modifyLabels(threadIds, {
-  //       addLabels: ['UNREAD'],
-  //       removeLabels: [],
-  //     });
-  //   }
-
-  async modifyLabels(threadIds: string[], addLabelIds: string[], removeLabelIds: string[]) {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    const result = await this.driver.modifyLabels(threadIds, {
-      addLabels: addLabelIds,
-      removeLabels: removeLabelIds,
-    });
-
-    // Update local DB to reflect changes immediately
-    try {
-      // Resolve label names to IDs (if they were names)
-      const userLabels = await this.getUserLabels();
-      const labelMap = new Map(userLabels.map((l) => [l.name.toLowerCase(), l.id]));
-      const systemLabels = new Set([
-        'INBOX',
-        'TRASH',
-        'SPAM',
-        'DRAFT',
-        'SENT',
-        'STARRED',
-        'UNREAD',
-        'IMPORTANT',
-      ]);
-
-      const resolveId = (nameOrId: string) => {
-        const upper = nameOrId.toUpperCase();
-        if (systemLabels.has(upper)) return upper;
-        return labelMap.get(nameOrId.toLowerCase()) || nameOrId;
-      };
-
-      const resolvedAdd = addLabelIds.map(resolveId);
-      const resolvedRemove = removeLabelIds.map(resolveId);
-
-      await Promise.all(
-        threadIds.map((id) => this.modifyThreadLabelsInDB(id, resolvedAdd, resolvedRemove)),
-      );
-    } catch (error) {
-      console.warn('[ZeroDriver] Failed to update local DB after modifyLabels:', error);
-    }
-
-    return result;
-  }
-
-  async listHistory<T>(historyId: string) {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return await this.driver.listHistory<T>(historyId);
-  }
-
-  async getUserLabels() {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return await this.driver.getUserLabels();
-  }
-
-  async getLabel(id: string) {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return await this.driver.getLabel(id);
-  }
-
-  async createLabel(params: {
-    name: string;
-    color?: {
-      backgroundColor: string;
-      textColor: string;
-    };
-  }) {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return await this.driver.createLabel(params);
-  }
-
-  async bulkDelete(threadIds: string[]) {
-    return await this.modifyLabels(threadIds, ['TRASH'], ['INBOX']);
-  }
-
-  async bulkArchive(threadIds: string[]) {
-    return await this.modifyLabels(threadIds, [], ['INBOX']);
-  }
-
-  async updateLabel(
-    id: string,
-    label: { name: string; color?: { backgroundColor: string; textColor: string } },
-  ) {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return await this.driver.updateLabel(id, label);
-  }
-
-  async deleteLabel(id: string) {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return await this.driver.deleteLabel(id);
-  }
-
-  async createDraft(draftData: CreateDraftData) {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return await this.driver.createDraft(draftData);
-  }
-
-  async getDraft(id: string) {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return await this.driver.getDraft(id);
-  }
-
-  async listDrafts(params: { q?: string; maxResults?: number; pageToken?: string }) {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return await this.driver.listDrafts(params);
-  }
-
-  // Additional mail operations
-  async count() {
-    if (!this.driver) {
-      throw new Error('No driver available');
-    }
-    return await this.driver.count();
-  }
-
-  private async listWithRetry(params: Parameters<MailManager['list']>[0]) {
-    if (!this.driver) throw new Error('No driver available');
-
-    return Effect.runPromise(withRetry(Effect.tryPromise(() => this.driver!.list(params))));
-  }
-
-  private async getWithRetry(threadId: string): Promise<IGetThreadResponse> {
-    if (!this.driver) throw new Error('No driver available');
-
-    return Effect.runPromise(withRetry(Effect.tryPromise(() => this.driver!.get(threadId))));
-  }
-
-  private getThreadKey(threadId: string) {
-    return `${this.name}/${threadId}.json`;
-  }
-
-  async *streamThreads(folder: string) {
-    let pageToken: string | null = null;
-    let hasMore = true;
-
-    while (hasMore) {
-      // Rate limiting delay
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      const result = await this.listWithRetry({
-        folder,
-        maxResults: maxCount, // Smaller batches for streaming
-        pageToken: pageToken || undefined,
-      });
-
-      // Stream each thread individually
-      for (const thread of result.threads) {
-        yield thread;
-      }
-
-      pageToken = result.nextPageToken;
-      hasMore = pageToken !== null && shouldLoop;
-    }
-  }
-
-  async dropTables() {
-    console.log('Dropping tables');
-    return this.sql`
-        DROP TABLE IF EXISTS threads;`;
-  }
-
-  async deleteThread(id: string) {
-    void this.sql`
-      DELETE FROM threads WHERE thread_id = ${id};
-    `;
-    this.agent?.broadcastChatMessage({
-      type: OutgoingMessageType.Mail_List,
-      folder: 'bin',
-    });
-  }
-
-  async reloadFolder(folder: string) {
-    this.agent?.broadcastChatMessage({
-      type: OutgoingMessageType.Mail_List,
-      folder,
-    });
-  }
-
   async syncThread({ threadId }: { threadId: string }): Promise<ThreadSyncResult> {
-    if (this.name === 'general' || this.name.includes('aggregate')) {
-      console.log(`[syncThread] Skipping sync for ${this.name} instance - thread ${threadId}`);
-      return { success: true, threadId, broadcastSent: false };
-    }
-
+    // Return existing promise if already in progress
     if (this.syncThreadsInProgress.has(threadId)) {
-      console.log(`[syncThread] Sync already in progress for thread ${threadId}, skipping...`);
-      return { success: true, threadId, broadcastSent: false };
+      return this.syncThreadsInProgress.get(threadId)!;
     }
 
-    return Effect.runPromise(
-      Effect.gen(this, function* () {
-        console.log(`[syncThread] Starting sync for thread: ${threadId}`);
+    const requirements: ThreadSyncRequirements = {
+      driver: this.driver!,
+      agent: this.agent,
+      connectionId: this.name,
+    };
+
+    return await Effect.runPromise(
+      Effect.gen(function* () {
+        const { driver, connectionId } = yield* Effect.service(ThreadSyncRequirements);
 
         const result: ThreadSyncResult = {
           success: false,
@@ -929,113 +494,46 @@ export class ZeroDriver extends Agent<ZeroEnv> {
           broadcastSent: false,
         };
 
-        // Setup driver if needed
-        if (!this.driver) {
-          yield* Effect.tryPromise(() => this.setupAuth()).pipe(
-            Effect.tap(() => Effect.sync(() => console.log(`[syncThread] Setup auth completed`))),
-            Effect.catchAll((error) => {
-              console.error(`[syncThread] Failed to setup auth:`, error);
-              return Effect.succeed(undefined);
+        // 1. Fetch thread data
+        const threadResponse = yield* Effect.tryPromise({
+          try: () => driver.get(threadId),
+          catch: (e) => new ThreadDataError(`Failed to fetch thread ${threadId}`, e),
+        });
+
+        result.threadData = threadResponse;
+        const { latest, labels } = threadResponse;
+
+        // 2. Normalize date for DB
+        const normalizedDate = yield* Effect.try(() => {
+          if (!latest?.receivedOn) return new Date().toISOString();
+          const d = new Date(latest.receivedOn);
+          if (isNaN(d.getTime())) throw new Error('Invalid date');
+          return d.toISOString();
+        }).pipe(Effect.catchAll(() => Effect.succeed(new Date().toISOString())));
+
+        result.normalizedReceivedOn = normalizedDate;
+
+        // 3. Update Database using our specialized storeThreadInDB
+        yield* Effect.tryPromise(() =>
+          this.storeThreadInDB(
+            {
+              id: threadId,
+              threadId: threadId,
+              providerId: connectionId,
+              latestSender: latest?.sender,
+              latestReceivedOn: normalizedDate,
+              latestSubject: latest?.subject || '(no subject)',
+            },
+            labels.map((l) => l.id),
+          ),
+        ).pipe(
+          Effect.tap(() =>
+            Effect.sync(() => {
+              console.log(`[syncThread] Updated database for ${threadId}`);
+              this.invalidateRecipientCache();
             }),
-          );
-        }
-
-        if (!this.driver) {
-          console.error(`[syncThread] No driver available for thread ${threadId}`);
-          result.success = false;
-          result.reason = 'No driver available';
-          return result;
-        }
-
-        this.syncThreadsInProgress.set(threadId, true);
-
-        // Get thread data with retry
-        const threadData = yield* Effect.tryPromise(() => this.getWithRetry(threadId)).pipe(
-          Effect.tap(() =>
-            Effect.sync(() => console.log(`[syncThread] Retrieved thread data for ${threadId}`)),
           ),
-          Effect.catchAll((error) => {
-            console.error(`[syncThread] Failed to get thread data for ${threadId}:`, error);
-            return Effect.fail(
-              new ThreadDataError(`Failed to get thread data for ${threadId}`, error),
-            );
-          }),
-        );
-
-        const latest = threadData.latest;
-
-        if (!latest) {
-          this.syncThreadsInProgress.delete(threadId);
-          console.log(`[syncThread] Skipping thread ${threadId} - no latest message`);
-          result.success = false;
-          result.reason = 'No latest message';
-          return result;
-        }
-
-        // Normalize received date
-        const normalizedReceivedOn = yield* Effect.try({
-          try: () => new Date(latest.receivedOn).toISOString(),
-          catch: (error) =>
-            new DateNormalizationError(`Failed to normalize date for ${threadId}`, error),
-        }).pipe(
-          Effect.catchAll((error) => {
-            console.warn(
-              `[syncThread] Date normalization failed for ${threadId}, using current date:`,
-              error,
-            );
-            return Effect.succeed(new Date().toISOString());
-          }),
-        );
-
-        result.normalizedReceivedOn = normalizedReceivedOn;
-
-        // Store thread data in bucket
-        yield* Effect.tryPromise(() =>
-          this.env.THREADS_BUCKET.put(this.getThreadKey(threadId), JSON.stringify(threadData), {
-            customMetadata: { threadId },
-          }),
-        ).pipe(
-          Effect.tap(() =>
-            Effect.sync(() =>
-              console.log(`[syncThread] Stored thread data in bucket for ${threadId}`),
-            ),
-          ),
-          Effect.catchAll((error) => {
-            console.error(
-              `[syncThread] Failed to store thread data in bucket for ${threadId}:`,
-              error,
-            );
-            return Effect.succeed(undefined);
-          }),
-        );
-
-        // Update database
-        yield* Effect.tryPromise(() =>
-          Promise.resolve(this.sql`
-          INSERT OR REPLACE INTO threads (
-            id,
-            thread_id,
-            provider_id,
-            latest_sender,
-            latest_received_on,
-            latest_subject,
-            latest_label_ids,
-            updated_at
-          ) VALUES (
-            ${threadId},
-            ${threadId},
-            'google',
-            ${JSON.stringify(latest.sender)},
-            ${normalizedReceivedOn},
-            ${latest.subject},
-            ${JSON.stringify(latest.tags.map((tag) => tag.id))},
-            CURRENT_TIMESTAMP
-          )
-        `),
-        ).pipe(
-          Effect.tap(() =>
-            Effect.sync(() => console.log(`[syncThread] Updated database for ${threadId}`)),
-          ),
+          Effect.tap(() => Effect.sync(() => this.reloadFolder('inbox'))),
           Effect.catchAll((error) => {
             console.error(`[syncThread] Failed to update database for ${threadId}:`, error);
             return Effect.succeed(undefined);
@@ -1068,7 +566,6 @@ export class ZeroDriver extends Agent<ZeroEnv> {
         this.syncThreadsInProgress.delete(threadId);
 
         result.success = true;
-        result.threadData = threadData;
 
         console.log(`[syncThread] Completed sync for thread: ${threadId}`, {
           success: result.success,
@@ -1093,241 +590,8 @@ export class ZeroDriver extends Agent<ZeroEnv> {
   }
 
   async getThreadCount() {
-    const count = this.sql`SELECT COUNT(*) FROM threads`;
-    return count[0]['COUNT(*)'] as number;
-  }
-
-  async getFolderThreadCount(folder: string) {
-    const count = this.sql`SELECT COUNT(*) FROM threads WHERE EXISTS (
-      SELECT 1 FROM json_each(latest_label_ids) WHERE value = ${folder}
-    )`;
-    return count[0]['COUNT(*)'] as number;
-  }
-
-  async syncThreads(folder: string): Promise<FolderSyncResult> {
-    // Skip sync for aggregate instances - they should only mirror primary operations
-    if (this.name.includes('aggregate')) {
-      console.log(`[syncThreads] Skipping sync for aggregate instance - folder ${folder}`);
-      return {
-        synced: 0,
-        message: 'Skipped aggregate instance',
-        folder,
-        pagesProcessed: 0,
-        totalThreads: 0,
-        successfulSyncs: 0,
-        failedSyncs: 0,
-        broadcastSent: false,
-      };
-    }
-
-    if (!this.driver) {
-      console.error(`[syncThreads] No driver available for folder ${folder}`);
-      return {
-        synced: 0,
-        message: 'No driver available',
-        folder,
-        pagesProcessed: 0,
-        totalThreads: 0,
-        successfulSyncs: 0,
-        failedSyncs: 0,
-        broadcastSent: false,
-      };
-    }
-
-    if (this.foldersInSync.has(folder)) {
-      console.log(`[syncThreads] Sync already in progress for folder ${folder}, skipping...`);
-      return {
-        synced: 0,
-        message: 'Sync already in progress',
-        folder,
-        pagesProcessed: 0,
-        totalThreads: 0,
-        successfulSyncs: 0,
-        failedSyncs: 0,
-        broadcastSent: false,
-      };
-    }
-
-    return Effect.runPromise(
-      Effect.gen(this, function* () {
-        console.log(`[syncThreads] Starting sync for folder: ${folder}`);
-
-        const result: FolderSyncResult = {
-          synced: 0,
-          message: 'Sync completed',
-          folder,
-          pagesProcessed: 0,
-          totalThreads: 0,
-          successfulSyncs: 0,
-          failedSyncs: 0,
-          broadcastSent: false,
-        };
-
-        // Check thread count
-        const threadCount = yield* Effect.tryPromise(() => this.getThreadCount()).pipe(
-          Effect.tap((count) =>
-            Effect.sync(() => console.log(`[syncThreads] Current thread count: ${count}`)),
-          ),
-          Effect.catchAll((error) => {
-            console.warn(`[syncThreads] Failed to get thread count:`, error);
-            return Effect.succeed(0);
-          }),
-        );
-
-        if (threadCount >= maxCount && !shouldLoop) {
-          console.log(`[syncThreads] Threads already synced (${threadCount}), skipping...`);
-          result.message = 'Threads already synced';
-          return result;
-        }
-
-        this.foldersInSync.set(folder, true);
-
-        // Sync single thread function
-        const syncSingleThread = (threadId: string) =>
-          Effect.gen(this, function* () {
-            yield* Effect.sleep(150); // Rate limiting delay
-            const syncResult = yield* Effect.tryPromise(() => this.syncThread({ threadId })).pipe(
-              Effect.tap(() =>
-                Effect.sync(() =>
-                  console.log(`[syncThreads] Successfully synced thread ${threadId}`),
-                ),
-              ),
-              Effect.catchAll((error) => {
-                console.error(`[syncThreads] Failed to sync thread ${threadId}:`, error);
-                return Effect.succeed({
-                  success: false,
-                  threadId,
-                  reason: error.message,
-                  broadcastSent: false,
-                });
-              }),
-            );
-
-            if (syncResult.success) {
-              result.successfulSyncs++;
-            } else {
-              result.failedSyncs++;
-            }
-
-            return syncResult;
-          });
-
-        // Main sync program
-        let pageToken: string | null = null;
-        let hasMore = true;
-
-        while (hasMore) {
-          result.pagesProcessed++;
-
-          // Rate limiting delay between pages
-          yield* Effect.sleep(1000);
-
-          console.log(
-            `[syncThreads] Processing page ${result.pagesProcessed} for folder ${folder}`,
-          );
-
-          const listResult = yield* Effect.tryPromise(() =>
-            this.listWithRetry({
-              folder,
-              maxResults: maxCount,
-              pageToken: pageToken || undefined,
-            }),
-          ).pipe(
-            Effect.tap((listResult) =>
-              Effect.sync(() => {
-                console.log(
-                  `[syncThreads] Retrieved ${listResult.threads.length} threads from page ${result.pagesProcessed}`,
-                );
-                result.totalThreads += listResult.threads.length;
-              }),
-            ),
-            Effect.catchAll((error) => {
-              console.error(`[syncThreads] Failed to list threads for folder ${folder}:`, error);
-              return Effect.fail(
-                new ThreadListError(`Failed to list threads for folder ${folder}`, error),
-              );
-            }),
-          );
-
-          // Process threads with controlled concurrency to avoid rate limits
-          const threadIds = listResult.threads.map((thread) => thread.id);
-          const syncEffects = threadIds.map(syncSingleThread);
-
-          yield* Effect.all(syncEffects, { concurrency: 1, discard: true }).pipe(
-            Effect.tap(() =>
-              Effect.sync(() =>
-                console.log(`[syncThreads] Completed page ${result.pagesProcessed}`),
-              ),
-            ),
-            Effect.catchAll((error) => {
-              console.error(
-                `[syncThreads] Failed to process threads on page ${result.pagesProcessed}:`,
-                error,
-              );
-              return Effect.succeed(undefined);
-            }),
-          );
-
-          result.synced += listResult.threads.length;
-          pageToken = listResult.nextPageToken;
-          hasMore = pageToken !== null && shouldLoop;
-        }
-
-        // Broadcast completion if agent exists
-        if (this.agent) {
-          yield* Effect.tryPromise(() =>
-            this.agent!.broadcastChatMessage({
-              type: OutgoingMessageType.Mail_List,
-              folder,
-            }),
-          ).pipe(
-            Effect.tap(() =>
-              Effect.sync(() => {
-                result.broadcastSent = true;
-                console.log(`[syncThreads] Broadcasted completion for folder ${folder}`);
-              }),
-            ),
-            Effect.catchAll((error) => {
-              console.warn(
-                `[syncThreads] Failed to broadcast completion for folder ${folder}:`,
-                error,
-              );
-              return Effect.succeed(undefined);
-            }),
-          );
-        } else {
-          console.log(`[syncThreads] No agent available for broadcasting folder ${folder}`);
-        }
-
-        this.foldersInSync.delete(folder);
-
-        console.log(`[syncThreads] Completed sync for folder: ${folder}`, {
-          synced: result.synced,
-          pagesProcessed: result.pagesProcessed,
-          totalThreads: result.totalThreads,
-          successfulSyncs: result.successfulSyncs,
-          failedSyncs: result.failedSyncs,
-          broadcastSent: result.broadcastSent,
-        });
-
-        return result;
-      }).pipe(
-        Effect.catchAll((error) => {
-          this.foldersInSync.delete(folder);
-          console.error(`[syncThreads] Critical error syncing folder ${folder}:`, error);
-          return Effect.succeed({
-            synced: 0,
-            message: `Sync failed: ${error.message}`,
-            folder,
-            pagesProcessed: 0,
-            totalThreads: 0,
-            successfulSyncs: 0,
-            failedSyncs: 0,
-            broadcastSent: false,
-          });
-        }),
-      ),
-    );
+    const count = await countThreads(this.db);
+    return count || 0;
   }
 
   async inboxRag(query: string) {
@@ -1395,10 +659,7 @@ export class ZeroDriver extends Agent<ZeroEnv> {
 
     const genQueryEffect = Effect.tryPromise(() => {
       return generateText({
-        model: getModel(undefined, {
-          user_id: this.name,
-          tags: ['zero-driver-search'],
-        }),
+        model: openai(this.env.OPENAI_MODEL || 'gpt-4o'),
         system: GmailSearchAssistantSystemPrompt(),
         prompt: params.query,
       }).then((response) => response.text);
@@ -1451,6 +712,123 @@ export class ZeroDriver extends Agent<ZeroEnv> {
     return folderName;
   }
 
+  private queryThreads(params: {
+    labelIds?: string[];
+    folder?: string;
+    q?: string;
+    pageToken?: string;
+    maxResults: number;
+  }) {
+    return Effect.tryPromise(async () => {
+      const { labelIds = [], folder, q, pageToken, maxResults } = params;
+
+      console.log('[queryThreads] params:', { labelIds, folder, q, pageToken, maxResults });
+
+      // Import the new database functions
+      const {
+        findThreadsWithPagination,
+        findThreadsByFolderWithPagination,
+        findThreadsByFolder,
+        findThreadsWithAnyLabels,
+        findThreadsWithTextSearch,
+        list,
+      } = await import('./db');
+
+      // Case 1: All threads (no filters)
+      if (!folder && labelIds.length === 0 && !q && !pageToken) {
+        console.log('[queryThreads] Case: all threads');
+        const threads = await list(this.db);
+        return threads.map((thread: any) => ({
+          id: thread.id,
+          latest_received_on: thread.latestReceivedOn,
+        }));
+      }
+
+      // Case 2: Folder only
+      if (folder && labelIds.length === 0 && !q) {
+        const folderLabel = folder.toUpperCase();
+        console.log('[queryThreads] Case: folder only', { folderLabel });
+
+        if (pageToken) {
+          const result = await findThreadsByFolderWithPagination(this.db, folderLabel, {
+            pageToken,
+            maxResults,
+          });
+          return result.threads.map((thread: any) => ({
+            id: thread.id,
+            latest_received_on: thread.latestReceivedOn,
+          }));
+        } else {
+          const threads = await findThreadsByFolder(this.db, folderLabel);
+          return threads.slice(0, maxResults).map((thread: any) => ({
+            id: thread.id,
+            latest_received_on: thread.latestReceivedOn,
+          }));
+        }
+      }
+
+      // Case 3: Single label only
+      if (labelIds.length === 1 && !folder && !q) {
+        const labelId = labelIds[0];
+        console.log('[queryThreads] Case: single label only', { labelId });
+
+        if (pageToken) {
+          const result = await findThreadsWithPagination(this.db, {
+            labelIds: [labelId],
+            pageToken,
+            maxResults,
+          });
+          return result.threads.map((thread: any) => ({
+            id: thread.id,
+            latest_received_on: thread.latestReceivedOn,
+          }));
+        } else {
+          const threads = await findThreadsWithAnyLabels(this.db, [labelId]);
+          return threads.slice(0, maxResults).map((thread: any) => ({
+            id: thread.id,
+            latest_received_on: thread.latestReceivedOn,
+          }));
+        }
+      }
+
+      // Case 4: Text search only
+      if (q && !folder && labelIds.length === 0) {
+        console.log('[queryThreads] Case: text search only', { q });
+        const threads = await findThreadsWithTextSearch(this.db, q);
+        return threads.slice(0, maxResults).map((thread: any) => ({
+          id: thread.id,
+          latest_received_on: thread.latestReceivedOn,
+        }));
+      }
+
+      // Case 5: Complex filtering (folder + labels + search + pagination)
+      console.log('[queryThreads] Case: complex filtering', {
+        folder,
+        labelIds,
+        q,
+        pageToken,
+      });
+
+      const allLabelIds = [...labelIds];
+      if (folder) {
+        allLabelIds.push(folder.toUpperCase());
+      }
+
+      const result = await findThreadsWithPagination(this.db, {
+        labelIds: allLabelIds,
+        searchText: q,
+        pageToken,
+        maxResults,
+        requireAllLabels: true, // Require all labels to be present
+      });
+
+      return result.threads.map((thread: any) => ({
+        id: thread.id,
+        latest_received_on: thread.latestReceivedOn,
+      }));
+    });
+  }
+
   async getThreadsFromDB(params: {
     labelIds?: string[];
     folder?: string;
@@ -1458,174 +836,47 @@ export class ZeroDriver extends Agent<ZeroEnv> {
     maxResults?: number;
     pageToken?: string;
   }): Promise<IGetThreadsResponse> {
-    const { labelIds = [], q, maxResults = 50, pageToken } = params;
-    let folder = params.folder ?? 'inbox';
+    const { maxResults = 50 } = params;
+    const normalizedParams = {
+      ...params,
+      folder: params.folder ? this.normalizeFolderName(params.folder) : undefined,
+      maxResults,
+    };
 
-    try {
-      folder = this.normalizeFolderName(folder);
-      // TODO: Sometimes the DO storage is resetting
-      //   const folderThreadCount = (await this.count()).find((c) => c.label === folder)?.count;
-      //   const currentThreadCount = await this.getThreadCount();
+    const program = pipe(
+      this.queryThreads(normalizedParams),
+      Effect.map((result) => {
+        if (result?.length) {
+          const threads = result.map((row) => ({
+            id: String(row.id),
+            historyId: null,
+          }));
 
-      //   if (folderThreadCount && folderThreadCount > currentThreadCount && folder) {
-      //     this.ctx.waitUntil(this.syncThreads(folder));
-      //   }
+          // Use latest_received_on for pagination cursor
+          const nextPageToken =
+            threads.length === maxResults && result.length > 0
+              ? String(result[result.length - 1].latest_received_on)
+              : null;
 
-      // Build WHERE conditions
-      const whereConditions: string[] = [];
-
-      // Add folder condition (maps to specific label)
-      if (folder) {
-        const folderLabel = folder.toUpperCase();
-        whereConditions.push(`EXISTS (
-            SELECT 1 FROM json_each(latest_label_ids) WHERE value = '${folderLabel}'
-          )`);
-      }
-
-      // Add label conditions (OR logic for multiple labels)
-      if (labelIds.length > 0) {
-        if (labelIds.length === 1) {
-          whereConditions.push(`EXISTS (
-              SELECT 1 FROM json_each(latest_label_ids) WHERE value = '${labelIds[0]}'
-            )`);
-        } else {
-          // Multiple labels with OR logic
-          const multiLabelCondition = labelIds
-            .map(
-              (labelId) =>
-                `EXISTS (SELECT 1 FROM json_each(latest_label_ids) WHERE value = '${labelId}')`,
-            )
-            .join(' OR ');
-          whereConditions.push(`(${multiLabelCondition})`);
+          return {
+            threads,
+            nextPageToken,
+          };
         }
-      }
-
-      //   // Add search query condition
-      if (q) {
-        const searchTerm = q.replace(/'/g, "''"); // Escape single quotes
-        whereConditions.push(`(
-            latest_subject LIKE '%${searchTerm}%' OR
-            latest_sender LIKE '%${searchTerm}%'
-          )`);
-      }
-
-      // Add cursor condition
-      if (pageToken) {
-        whereConditions.push(`latest_received_on < '${pageToken}'`);
-      }
-
-      // Execute query based on conditions
-      let result;
-
-      if (whereConditions.length === 0) {
-        // No conditions
-        result = this.sql`
-            SELECT id, latest_received_on
-            FROM threads
-            ORDER BY latest_received_on DESC
-            LIMIT ${maxResults}
-          `;
-      } else if (whereConditions.length === 1) {
-        // Single condition
-        const condition = whereConditions[0];
-        if (condition.includes('latest_received_on <')) {
-          const cursorValue = pageToken!;
-          result = this.sql`
-              SELECT id, latest_received_on
-              FROM threads
-              WHERE latest_received_on < ${cursorValue}
-              ORDER BY latest_received_on DESC
-              LIMIT ${maxResults}
-            `;
-        } else if (folder) {
-          // Folder condition
-          const folderLabel = folder.toUpperCase();
-          result = this.sql`
-              SELECT id, latest_received_on
-              FROM threads
-              WHERE EXISTS (
-                SELECT 1 FROM json_each(latest_label_ids) WHERE value = ${folderLabel}
-              )
-              ORDER BY latest_received_on DESC
-              LIMIT ${maxResults}
-            `;
-        } else {
-          // Single label condition
-          const labelId = labelIds[0];
-          result = this.sql`
-              SELECT id, latest_received_on
-              FROM threads
-              WHERE EXISTS (
-                SELECT 1 FROM json_each(latest_label_ids) WHERE value = ${labelId}
-              )
-              ORDER BY latest_received_on DESC
-              LIMIT ${maxResults}
-            `;
-        }
-      } else {
-        // Multiple conditions - handle combinations
-        if (folder && labelIds.length === 0 && pageToken) {
-          // Folder + cursor
-          const folderLabel = folder.toUpperCase();
-          result = this.sql`
-              SELECT id, latest_received_on
-              FROM threads
-              WHERE EXISTS (
-                SELECT 1 FROM json_each(latest_label_ids) WHERE value = ${folderLabel}
-              ) AND latest_received_on < ${pageToken}
-              ORDER BY latest_received_on DESC
-              LIMIT ${maxResults}
-            `;
-        } else if (labelIds.length === 1 && pageToken && !folder) {
-          // Single label + cursor
-          const labelId = labelIds[0];
-          result = this.sql`
-              SELECT id, latest_received_on
-              FROM threads
-              WHERE EXISTS (
-                SELECT 1 FROM json_each(latest_label_ids) WHERE value = ${labelId}
-              ) AND latest_received_on < ${pageToken}
-              ORDER BY latest_received_on DESC
-              LIMIT ${maxResults}
-            `;
-        } else {
-          // For now, fallback to just cursor if complex combinations
-          const cursorValue = pageToken || '';
-          result = this.sql`
-              SELECT id, latest_received_on
-              FROM threads
-              WHERE latest_received_on < ${cursorValue}
-              ORDER BY latest_received_on DESC
-              LIMIT ${maxResults}
-            `;
-        }
-      }
-
-      if (result?.length) {
-        const threads = result.map((row) => ({
-          id: String(row.id),
-          historyId: null,
-        }));
-
-        // Use latest_received_on for pagination cursor
-        const nextPageToken =
-          threads.length === maxResults && result.length > 0
-            ? String(result[result.length - 1].latest_received_on)
-            : null;
-
         return {
-          threads,
-          nextPageToken,
+          threads: [],
+          nextPageToken: '',
         };
-      }
-      return {
-        threads: [],
-        nextPageToken: '',
-      };
-    } catch (error) {
-      console.error('Failed to get threads from database:', error);
-      throw error;
-    }
+      }),
+      Effect.catchAll((error) =>
+        Effect.sync(() => {
+          console.error('Failed to get threads from database:', error);
+          throw error;
+        }),
+      ),
+    );
+
+    return await Effect.runPromise(program);
   }
 
   async modifyThreadLabelsByName(
@@ -1680,50 +931,13 @@ export class ZeroDriver extends Agent<ZeroEnv> {
 
   async modifyThreadLabelsInDB(threadId: string, addLabels: string[], removeLabels: string[]) {
     try {
-      // Get current labels
-      const result = this.sql`
-        SELECT latest_label_ids
-        FROM threads
-        WHERE thread_id = ${threadId}
-        LIMIT 1
-      `;
+      const currentLabelsData = await getThreadLabels(this.db, threadId);
+      const currentLabels = currentLabelsData.map((l) => l.id);
 
-      if (!result || result.length === 0) {
-        throw new Error(`Thread ${threadId} not found in database`);
-      }
+      const result = await modifyThreadLabels(this.db, threadId, addLabels, removeLabels);
 
-      let currentLabels: string[];
-      try {
-        currentLabels = JSON.parse(String(result[0].latest_label_ids || '[]')) as string[];
-      } catch (error) {
-        console.error(`Invalid JSON in latest_label_ids for thread ${threadId}:`, error);
-        currentLabels = [];
-      }
-
-      // Apply label modifications
-      let updatedLabels = [...currentLabels];
-
-      // Remove labels
-      if (removeLabels.length > 0) {
-        updatedLabels = updatedLabels.filter((label) => !removeLabels.includes(label));
-      }
-
-      // Add labels (avoid duplicates)
-      if (addLabels.length > 0) {
-        for (const label of addLabels) {
-          if (!updatedLabels.includes(label)) {
-            updatedLabels.push(label);
-          }
-        }
-      }
-
-      // Update the database
-      void this.sql`
-        UPDATE threads
-        SET latest_label_ids = ${JSON.stringify(updatedLabels)},
-            updated_at = CURRENT_TIMESTAMP
-        WHERE thread_id = ${threadId}
-      `;
+      const allAffectedLabels = [...new Set([...addLabels, ...removeLabels])];
+      await Promise.all(allAffectedLabels.map((label) => this.reloadFolder(label.toLowerCase())));
 
       await this.agent?.broadcastChatMessage({
         type: OutgoingMessageType.Mail_Get,
@@ -1734,7 +948,8 @@ export class ZeroDriver extends Agent<ZeroEnv> {
         success: true,
         threadId,
         previousLabels: currentLabels,
-        updatedLabels,
+        addedLabels: result.addedLabels,
+        removedLabels: result.removedLabels,
       };
     } catch (error) {
       console.error('Failed to modify thread labels in database:', error);
@@ -1744,24 +959,9 @@ export class ZeroDriver extends Agent<ZeroEnv> {
 
   async getThreadFromDB(id: string, includeDrafts: boolean = false): Promise<IGetThreadResponse> {
     try {
-      const result = this.sql`
-          SELECT
-            id,
-            thread_id,
-            provider_id,
-            latest_sender,
-            latest_received_on,
-            latest_subject,
-            latest_label_ids,
-            created_at,
-            updated_at
-          FROM threads
-          WHERE thread_id = ${id}
-          LIMIT 1
-        `;
-
-      if (!result || result.length === 0) {
-        await this.queue('syncThread', { threadId: id });
+      const result = await get(this.db, { id });
+      if (!result) {
+        await this.syncThread({ threadId: id });
         return {
           messages: [],
           latest: undefined,
@@ -1770,7 +970,6 @@ export class ZeroDriver extends Agent<ZeroEnv> {
           labels: [],
         } satisfies IGetThreadResponse;
       }
-      const row = result[0] as { latest_label_ids: string };
       const storedThread = await this.env.THREADS_BUCKET.get(this.getThreadKey(id));
 
       let messages: ParsedMessage[] = storedThread
@@ -1783,14 +982,15 @@ export class ZeroDriver extends Agent<ZeroEnv> {
         messages = messages.filter((e) => e.isDraft !== true);
       }
 
-      const latestLabelIds = JSON.parse(row.latest_label_ids || '[]');
+      const labelsList = await getThreadLabels(this.db, id);
+      const labelIds = labelsList.map((l) => l.id);
 
       return {
         messages,
         latest: messages.findLast((e) => e.isDraft !== true),
-        hasUnread: latestLabelIds.includes('UNREAD'),
+        hasUnread: labelIds.includes('UNREAD'),
         totalReplies: messages.filter((e) => e.isDraft !== true).length,
-        labels: latestLabelIds.map((id: string) => ({ id, name: id })),
+        labels: labelsList,
         isLatestDraft,
       } satisfies IGetThreadResponse;
     } catch (error) {
@@ -1845,17 +1045,197 @@ export class ZeroDriver extends Agent<ZeroEnv> {
     return await this.getThreadsFromDB(params);
   }
 
+  async get(id: string) {
+    if (!this.driver) {
+      throw new Error('No driver available');
+    }
+    return await this.getThreadFromDB(id);
+  }
+
+  async suggestRecipients(query: string = '', limit: number = 10) {
+    const lower = query.toLowerCase();
+
+    const hashRows = await this.db
+      .select({ id: threads.id })
+      .from(threads)
+      .where(isNotNull(threads.latestSender))
+      .orderBy(desc(threads.latestReceivedOn))
+      .limit(100);
+
+    const currentHash = hashRows.map((r) => r.id).join(',');
+
+    if (!this.recipientCache || this.recipientCache.hash !== currentHash) {
+      const rows = await this.db
+        .select({
+          latest_sender: threads.latestSender,
+          latest_received_on: threads.latestReceivedOn,
+        })
+        .from(threads)
+        .where(isNotNull(threads.latestSender))
+        .orderBy(desc(threads.latestReceivedOn))
+        .limit(100);
+
+      const map = new Map<
+        string,
+        { email: string; name?: string | null; freq: number; last: number }
+      >();
+
+      for (const row of rows) {
+        if (!row?.latest_sender) continue;
+
+        let sender: { email?: string; name?: string } | null = null;
+
+        try {
+          const senderData = row.latest_sender;
+          if (typeof senderData === 'string') {
+            sender = JSON.parse(senderData);
+          } else if (typeof senderData === 'object' && senderData !== null) {
+            sender = senderData as { email?: string; name?: string };
+          } else {
+            sender = this.parseMalformedSender(String(senderData));
+          }
+
+          if (!sender) {
+            console.error(
+              '[SuggestRecipients] Failed to parse latest_sender, no fallback possible. Raw data:',
+              row.latest_sender,
+            );
+            continue;
+          }
+        } catch (error) {
+          sender = this.parseMalformedSender(String(row.latest_sender));
+          if (!sender) {
+            console.error(
+              '[SuggestRecipients] Failed to parse latest_sender, no fallback possible:',
+              error,
+              'Raw data:',
+              row.latest_sender,
+            );
+            continue;
+          }
+        }
+
+        if (!sender?.email) continue;
+
+        const key = sender.email.toLowerCase();
+        const lastTs = row.latest_received_on
+          ? new Date(String(row.latest_received_on)).getTime()
+          : 0;
+
+        if (!map.has(key)) {
+          map.set(key, {
+            email: sender.email,
+            name: sender.name || null,
+            freq: 1,
+            last: lastTs,
+          });
+        } else {
+          const entry = map.get(key)!;
+          entry.freq += 1;
+          if (lastTs > entry.last) entry.last = lastTs;
+        }
+      }
+
+      this.recipientCache = {
+        contacts: Array.from(map.values()),
+        hash: currentHash,
+      };
+    }
+
+    let contacts = this.recipientCache.contacts.slice();
+
+    if (lower) {
+      contacts = contacts.filter(
+        (c) =>
+          c.email.toLowerCase().includes(lower) || (c.name && c.name.toLowerCase().includes(lower)),
+      );
+    }
+
+    contacts.sort((a, b) => b.freq - a.freq || b.last - a.last);
+
+    return contacts.slice(0, limit).map((c) => ({
+      email: c.email,
+      name: c.name,
+      displayText: c.name ? `${c.name} <${c.email}>` : c.email,
+    }));
+  }
+
   //   async get(id: string, includeDrafts: boolean = false) {
   //     if (!this.driver) {
   //       throw new Error('No driver available');
   //     }
   //     return await this.getThreadFromDB(id, includeDrafts);
   //   }
+
+  public async storeThreadInDB(
+    threadData: {
+      id: string;
+      threadId: string;
+      providerId: string;
+      latestSender: any;
+      latestReceivedOn: string;
+      latestSubject: string;
+    },
+    labelIds: string[],
+  ): Promise<void> {
+    try {
+      await create(
+        this.db,
+        {
+          id: threadData.id,
+          threadId: threadData.threadId,
+          providerId: threadData.providerId,
+          latestSender: threadData.latestSender,
+          latestReceivedOn: threadData.latestReceivedOn,
+          latestSubject: threadData.latestSubject,
+        },
+        labelIds,
+      );
+      //   await sendDoState(this.name);
+      console.log(`[ZeroDriver] Successfully stored thread ${threadData.id} in database`);
+    } catch (error) {
+      console.error(`[ZeroDriver] Failed to store thread ${threadData.id} in database:`, error);
+      throw error;
+    }
+  }
+
+  private async triggerSyncWorkflow(folder: string): Promise<void> {
+    try {
+      console.log(`[ZeroDriver] Triggering sync coordinator workflow for ${this.name}/${folder}`);
+
+      const instance = await this.env.SYNC_THREADS_COORDINATOR_WORKFLOW.create({
+        params: {
+          connectionId: this.name,
+          folder: folder,
+        },
+      });
+
+      console.log(
+        `[ZeroDriver] Sync coordinator workflow triggered for ${this.name}/${folder}, instance: ${instance.id}`,
+      );
+    } catch (error) {
+      console.error(
+        `[ZeroDriver] Failed to trigger sync coordinator workflow for ${this.name}/${folder}:`,
+        error,
+      );
+      //   try {
+      //     const fallbackInstance = await this.env.SYNC_THREADS_WORKFLOW.create({
+      //       id: `${this.name}-${folder}`,
+      //       params: {
+      //         connectionId: this.name,
+      //         folder: folder,
+      //       },
+      //     });
+      //     console.log(`[ZeroDriver] Fallback to original workflow: ${fallbackInstance.id}`);
+      //   } catch (fallbackError) {
+      //     console.error(`[ZeroDriver] Fallback workflow also failed:`, fallbackError);
+      //   }
+    }
+  }
 }
 
 export class ZeroAgent extends AIChatAgent<ZeroEnv> {
   private chatMessageAbortControllers: Map<string, AbortController> = new Map();
-  private connectionThreadIds: Map<string, string | null> = new Map();
 
   async registerZeroMCP() {
     await this.mcp.connect(this.env.VITE_PUBLIC_BACKEND_URL + '/sse', {
@@ -1881,8 +1261,21 @@ export class ZeroAgent extends AIChatAgent<ZeroEnv> {
     });
   }
 
-  onStart(): void | Promise<void> {
+  onStart() {
     this.registerThinkingMCP();
+  }
+
+  async onConnect(connection: Connection): Promise<void> {
+    connection.send(
+      JSON.stringify({
+        type: OutgoingMessageType.Mail_List,
+        folder: 'inbox',
+      }),
+    );
+  }
+
+  async _reSyncThread({ threadId }: { threadId: string }) {
+    await reSyncThread(this.name, threadId);
   }
 
   private getDataStreamResponse(
@@ -1923,10 +1316,10 @@ export class ZeroAgent extends AIChatAgent<ZeroEnv> {
           executeFunctions,
         );
 
-        const model = getModel(undefined, {
-          user_id: connectionId,
-          tags: ['zero-agent-chat'],
-        });
+        const model =
+          this.env.USE_OPENAI === 'true'
+            ? groq('openai/gpt-oss-120b')
+            : anthropic(this.env.OPENAI_MODEL || 'claude-3-7-sonnet-20250219');
 
         const result = streamText({
           model,
@@ -2143,6 +1536,58 @@ export class ZeroAgent extends AIChatAgent<ZeroEnv> {
       controller?.abort();
     }
     this.chatMessageAbortControllers.clear();
+  }
+
+  async getCachedDoState(): Promise<{
+    storageSize: number;
+    counts: { label: string; count: number }[];
+    shards: number;
+    timestamp: number;
+  } | null> {
+    try {
+      const cached = await this.ctx.storage.get('do_state_cache');
+      if (!cached) return null;
+
+      const data = cached as any;
+      const now = Date.now();
+      const CACHE_TTL = 5 * 60 * 1000;
+
+      if (now - data.timestamp > CACHE_TTL) {
+        await this.ctx.storage.delete('do_state_cache');
+        return null;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[ZeroAgent] Failed to get cached DO state:', error);
+      return null;
+    }
+  }
+
+  async setCachedDoState(
+    storageSize: number,
+    counts: { label: string; count: number }[],
+    shards: number,
+  ): Promise<void> {
+    try {
+      const data = {
+        storageSize,
+        counts,
+        shards,
+        timestamp: Date.now(),
+      };
+      await this.ctx.storage.put('do_state_cache', data);
+    } catch (error) {
+      console.error('[ZeroAgent] Failed to cache DO state:', error);
+    }
+  }
+
+  async invalidateDoStateCache(): Promise<void> {
+    try {
+      await this.ctx.storage.delete('do_state_cache');
+    } catch (error) {
+      console.error('[ZeroAgent] Failed to invalidate DO state cache:', error);
+    }
   }
 
   async onChatMessageWithContext(

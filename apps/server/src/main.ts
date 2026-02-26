@@ -15,13 +15,23 @@ import {
   writingStyleMatrix,
   emailTemplate,
 } from './db/schema';
+import {
+  toAttachmentFiles,
+  type SerializedAttachment,
+  type AttachmentFile,
+} from './lib/attachments';
+import { SyncThreadsCoordinatorWorkflow } from './workflows/sync-threads-coordinator-workflow';
 import { WorkerEntrypoint, DurableObject, RpcTarget } from 'cloudflare:workers';
-import { EProviders, type ISubscribeBatch, type IThreadBatch } from './types';
-import { getZeroClient, getZeroDB, verifyToken } from './lib/server-utils';
+// import { instrument, type ResolveConfigFn } from '@microlabs/otel-cf-workers';
+import { getZeroAgent, getZeroDB, verifyToken } from './lib/server-utils';
+import { SyncThreadsWorkflow } from './workflows/sync-threads-workflow';
+import { ShardRegistry, ZeroAgent, ZeroDriver } from './routes/agent';
+import { ThreadSyncWorker } from './routes/agent/sync-worker';
 import { oAuthDiscoveryMetadata } from 'better-auth/plugins';
+import { EProviders, type IEmailSendBatch } from './types';
 import { eq, and, desc, asc, inArray } from 'drizzle-orm';
 import { ThinkingMCP } from './lib/sequential-thinking';
-import { ZeroAgent, ZeroDriver } from './routes/agent';
+
 import { contextStorage } from 'hono/context-storage';
 import { defaultUserSettings } from './lib/schemas';
 import { createLocalJWKSet, jwtVerify } from 'jose';
@@ -32,12 +42,12 @@ import { ZeroMCP } from './routes/agent/mcp';
 import { publicRouter } from './routes/auth';
 import { WorkflowRunner } from './pipelines';
 import { autumnApi } from './routes/autumn';
+import { initTracing } from './lib/tracing';
 import { env, type ZeroEnv } from './env';
 import type { HonoContext } from './ctx';
 import { createDb, type DB } from './db';
 import { createAuth } from './lib/auth';
 import { aiRouter } from './routes/ai';
-import { Autumn } from 'autumn-js';
 import { appRouter } from './trpc';
 import { cors } from 'hono/cors';
 import { Hono } from 'hono';
@@ -555,38 +565,143 @@ class ZeroDB extends DurableObject<ZeroEnv> {
   }
 }
 
+// Utility function to hash IP addresses for PII protection
+function hashIpAddress(ip: string | undefined): string | undefined {
+  if (!ip) return undefined;
+
+  // Simple but effective hash for IP addresses
+  // This preserves uniqueness while protecting PII
+  const salt = 'zero-mail-ip-salt-2024'; // Consider using env variable for production
+  let hash = 0;
+  const str = ip + salt;
+
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+
+  // Return a prefixed hex representation
+  return `ip_${Math.abs(hash).toString(16).padStart(8, '0')}`;
+}
+
 const api = new Hono<HonoContext>()
   .use(contextStorage())
   .use('*', async (c, next) => {
+    // Initialize request tracing using headers (no context pollution)
+    const traceId = c.req.header('X-Trace-ID') || crypto.randomUUID();
+    const requestId = c.req.header('X-Request-Id') || crypto.randomUUID();
+
+    // Set trace ID in response headers for client correlation
+    c.header('X-Trace-ID', traceId);
+    c.header('X-Request-ID', requestId);
+
+    // Store trace ID in context variables for TRPC access
+    c.set('traceId', traceId);
+    c.set('requestId', requestId);
+
+    const { TraceContext } = await import('./lib/trace-context');
+
+    // Create trace for this request
+    const rawIp = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For');
+    const trace = TraceContext.createTrace(traceId, {
+      requestId,
+      ip: hashIpAddress(rawIp), // Hash IP address to protect PII
+      userAgent: c.req.header('User-Agent'),
+    });
+
+    // Start authentication span
+    const authSpan = TraceContext.startSpan(traceId, 'authentication', {
+      method: c.req.method,
+      url: c.req.url,
+      hasAuthHeader: !!c.req.header('Authorization'),
+    }, {
+      'auth.method': c.req.header('Authorization') ? 'bearer_token' : 'session_cookie'
+    });
+
     const auth = createAuth();
     c.set('auth', auth);
     const session = await auth.api.getSession({ headers: c.req.raw.headers });
     c.set('sessionUser', session?.user);
 
     if (c.req.header('Authorization') && !session?.user) {
+      // Start token verification span
+      const tokenSpan = TraceContext.startSpan(traceId, 'token_verification', {
+        tokenPresent: true,
+      }, {
+        'auth.token_type': 'jwt'
+      });
+
       const token = c.req.header('Authorization')?.split(' ')[1];
 
       if (token) {
-        const localJwks = await auth.api.getJwks();
-        const jwks = createLocalJWKSet(localJwks);
+        try {
+          const localJwks = await auth.api.getJwks();
+          const jwks = createLocalJWKSet(localJwks);
 
-        const { payload } = await jwtVerify(token, jwks);
-        const userId = payload.sub;
+          const { payload } = await jwtVerify(token, jwks);
+          const userId = payload.sub;
 
-        if (userId) {
-          const db = await getZeroDB(userId);
-          c.set('sessionUser', await db.findUser());
+          if (userId) {
+            const db = await getZeroDB(userId);
+            const user = await db.findUser();
+            c.set('sessionUser', user);
+
+            TraceContext.completeSpan(traceId, tokenSpan.id, {
+              success: true,
+              userId,
+            });
+          } else {
+            TraceContext.completeSpan(traceId, tokenSpan.id, {
+              success: false,
+              reason: 'no_user_id_in_token',
+            });
+          }
+        } catch (error) {
+          TraceContext.completeSpan(traceId, tokenSpan.id, {
+            success: false,
+            reason: 'token_verification_failed',
+          }, error instanceof Error ? error.message : 'Unknown token error');
         }
+      } else {
+        TraceContext.completeSpan(traceId, tokenSpan.id, {
+          success: false,
+          reason: 'no_token_provided',
+        });
       }
     }
 
-    const autumn = new Autumn({ secretKey: env.AUTUMN_SECRET_KEY });
-    c.set('autumn', autumn);
+    // Complete auth span
+    TraceContext.completeSpan(traceId, authSpan.id, {
+      authenticated: !!c.var.sessionUser,
+      userId: c.var.sessionUser?.id,
+      authMethod: session?.user ? 'session' : (c.req.header('Authorization') ? 'token' : 'none'),
+    });
 
-    await next();
+    // Update trace metadata with user info
+    trace.metadata.userId = c.var.sessionUser?.id;
+    trace.metadata.sessionId = c.var.sessionUser?.id || 'anonymous';
+
+    // Start request processing span
+    const requestSpan = TraceContext.startSpan(traceId, 'request_processing', {
+      authenticated: !!c.var.sessionUser,
+      path: new URL(c.req.url).pathname,
+    });
+
+    try {
+      await next();
+      // Don't complete the request span here - let TRPC middleware handle it
+    } catch (error) {
+      TraceContext.completeSpan(traceId, requestSpan.id, {
+        success: false,
+
+        statusCode: c.res.status,
+      }, error instanceof Error ? error.message : 'Unknown request error');
+      throw error;
+    }
+    // Note: Trace will be completed by TRPC middleware after logging
 
     c.set('sessionUser', undefined);
-    c.set('autumn', undefined as any);
     c.set('auth', undefined as any);
   })
   .route('/ai', aiRouter)
@@ -746,53 +861,113 @@ const app = new Hono<HonoContext>()
     }
   })
   .post('/a8n/notify/:providerId', async (c) => {
-    if (!c.req.header('Authorization')) return c.json({ error: 'Unauthorized' }, { status: 401 });
-    if (env.DISABLE_WORKFLOWS === 'true') return c.json({ message: 'OK' }, { status: 200 });
-    const providerId = c.req.param('providerId');
-    if (providerId === EProviders.google) {
-      const body = await c.req.json<{ historyId: string }>();
-      const subHeader = c.req.header('x-goog-pubsub-subscription-name');
-      if (!subHeader) {
-        console.log('[GOOGLE] no subscription header', body);
-        return c.json({}, { status: 200 });
+    const tracer = initTracing();
+    const span = tracer.startSpan('a8n_notify', {
+      attributes: {
+        'provider.id': c.req.param('providerId'),
+        'notification.type': 'email_notification',
+        'http.method': c.req.method,
+        'http.url': c.req.url,
+      },
+    });
+
+    try {
+      if (!c.req.header('Authorization')) {
+        span.setAttributes({ 'auth.status': 'missing' });
+        return c.json({ error: 'Unauthorized' }, { status: 401 });
       }
-      const isValid = await verifyToken(c.req.header('Authorization')!.split(' ')[1]);
-      if (!isValid) {
-        console.log('[GOOGLE] invalid request', body);
-        return c.json({}, { status: 200 });
+      if (env.DISABLE_WORKFLOWS === 'true') {
+        span.setAttributes({ 'workflows.disabled': true });
+        return c.json({ message: 'OK' }, { status: 200 });
       }
-      try {
-        await env.thread_queue.send({
-          providerId,
-          historyId: body.historyId,
-          subscriptionName: subHeader,
+      const providerId = c.req.param('providerId');
+      if (providerId === EProviders.google) {
+        const body = await c.req.json<{ historyId: string }>();
+        const subHeader = c.req.header('x-goog-pubsub-subscription-name');
+
+        span.setAttributes({
+          'history.id': body.historyId,
+          'subscription.name': subHeader || 'missing',
         });
-      } catch (error) {
-        console.error('Error sending to thread queue', error, {
-          providerId,
-          historyId: body.historyId,
-          subscriptionName: subHeader,
-        });
+
+        if (!subHeader) {
+          console.log('[GOOGLE] no subscription header', body);
+          span.setAttributes({ 'error.type': 'missing_subscription_header' });
+          return c.json({}, { status: 200 });
+        }
+        const isValid = await verifyToken(c.req.header('Authorization')!.split(' ')[1]);
+        if (!isValid) {
+          console.log('[GOOGLE] invalid request', body);
+          span.setAttributes({ 'auth.status': 'invalid' });
+          return c.json({}, { status: 200 });
+        }
+
+        span.setAttributes({ 'auth.status': 'valid' });
+
+        try {
+          await env.thread_queue.send({
+            providerId,
+            historyId: body.historyId,
+            subscriptionName: subHeader,
+          });
+          span.setAttributes({ 'queue.message_sent': true });
+        } catch (error) {
+          console.error('Error sending to thread queue', error, {
+            providerId,
+            historyId: body.historyId,
+            subscriptionName: subHeader,
+          });
+          span.recordException(error as Error);
+          span.setStatus({ code: 2, message: (error as Error).message });
+        }
+        return c.json({ message: 'OK' }, { status: 200 });
       }
-      return c.json({ message: 'OK' }, { status: 200 });
+    } catch (error) {
+      span.recordException(error as Error);
+      span.setStatus({ code: 2, message: (error as Error).message });
+      throw error;
+    } finally {
+      span.end();
     }
   });
+const handler = {
+  async fetch(request: Request, env: ZeroEnv, ctx: ExecutionContext): Promise<Response> {
+    return app.fetch(request, env, ctx);
+  },
+};
+
+// const config: ResolveConfigFn = (env: ZeroEnv) => {
+//   return {
+//     exporter: {
+//       url: env.OTEL_EXPORTER_OTLP_ENDPOINT || 'https://api.axiom.co/v1/traces',
+//       headers: env.OTEL_EXPORTER_OTLP_HEADERS
+//         ? Object.fromEntries(
+//             env.OTEL_EXPORTER_OTLP_HEADERS.split(',').map((header: string) => {
+//               const [key, value] = header.split('=');
+//               return [key.trim(), value.trim()];
+//             }),
+//           )
+//         : {},
+//     },
+//     service: {
+//       name: env.OTEL_SERVICE_NAME || 'zero-email-server',
+//       version: '1.0.0',
+//     },
+//   };
+// };
+
 export default class Entry extends WorkerEntrypoint<ZeroEnv> {
   async fetch(request: Request): Promise<Response> {
-    // const url = new URL(request.url);
-    // if (url.pathname === '/__studio') {
-    //   return await studio(request, env.ZERO_DRIVER, {
-    //     basicAuth: { username: 'admin', password: 'password' },
-    //   });
-    // }
-    return app.fetch(request, this.env, this.ctx);
+    return handler.fetch(request, this.env, this.ctx);
   }
-  async queue(batch: MessageBatch<any>) {
+  async queue(
+    batch: MessageBatch<unknown> | { queue: string; messages: Array<{ body: IEmailSendBatch }> },
+  ) {
     switch (true) {
       case batch.queue.startsWith('subscribe-queue'): {
         console.log('batch', batch);
         await Promise.all(
-          batch.messages.map(async (msg: Message<ISubscribeBatch>) => {
+          batch.messages.map(async (msg: any) => {
             const connectionId = msg.body.connectionId;
             const providerId = msg.body.providerId;
             try {
@@ -808,14 +983,94 @@ export default class Entry extends WorkerEntrypoint<ZeroEnv> {
         console.log('[SUBSCRIBE_QUEUE] batch done');
         return;
       }
-      case batch.queue.startsWith('thread-queue'): {
+      case batch.queue.startsWith('send-email-queue'): {
         await Promise.all(
-          batch.messages.map(async (msg: Message<IThreadBatch>) => {
-            const providerId = msg.body.providerId;
-            const historyId = msg.body.historyId;
-            const subscriptionName = msg.body.subscriptionName;
+          batch.messages.map(async (msg: any) => {
+            const { messageId, connectionId, mail } = msg.body;
+
+            const { pending_emails_status: statusKV, pending_emails_payload: payloadKV } = this
+              .env as { pending_emails_status: KVNamespace; pending_emails_payload: KVNamespace };
+
+            const status = await statusKV.get(messageId);
+            if (status === 'cancelled') {
+              console.log(`Email ${messageId} cancelled – skipping send.`);
+              return;
+            }
+
+            let payload = mail;
+            if (!payload) {
+              const stored = await payloadKV.get(messageId);
+              if (!stored) {
+                console.error(`No payload found for scheduled email ${messageId}`);
+                return;
+              }
+              payload = JSON.parse(stored);
+            }
+
+            const agent = await getZeroAgent(connectionId, this.ctx);
+            try {
+              if (Array.isArray((payload as any).attachments)) {
+                const attachments = (payload as any).attachments;
+
+                const processedAttachments = await Promise.all(
+                  attachments.map(
+                    async (att: SerializedAttachment | AttachmentFile, index: number) => {
+                      if ('arrayBuffer' in att && typeof att.arrayBuffer === 'function') {
+                        return { attachment: att as AttachmentFile, index };
+                      } else {
+                        const processed = toAttachmentFiles([att as SerializedAttachment]);
+                        return { attachment: processed[0], index };
+                      }
+                    },
+                  ),
+                );
+
+                const orderedAttachments = Array.from({ length: attachments.length });
+                processedAttachments.forEach(({ attachment, index }) => {
+                  orderedAttachments[index] = attachment;
+                });
+
+                (payload as any).attachments = orderedAttachments;
+              }
+
+              if ('draftId' in (payload as any) && (payload as any).draftId) {
+                const { draftId, ...rest } = payload as any;
+                await agent.stub.sendDraft(draftId, rest as any);
+              } else {
+                await agent.stub.create(payload as any);
+              }
+
+              await statusKV.delete(messageId);
+              await payloadKV.delete(messageId);
+              console.log(`Email ${messageId} sent successfully`);
+            } catch (error) {
+              console.error(`Failed to send scheduled email ${messageId}:`, error);
+              await statusKV.delete(messageId);
+              await payloadKV.delete(messageId);
+            }
+          }),
+        );
+        return;
+      }
+      case batch.queue.startsWith('thread-queue'): {
+        const tracer = initTracing();
+
+        await Promise.all(
+          batch.messages.map(async (msg: any) => {
+            const span = tracer.startSpan('thread_queue_processing', {
+              attributes: {
+                'provider.id': msg.body.providerId,
+                'history.id': msg.body.historyId,
+                'subscription.name': msg.body.subscriptionName,
+                'queue.name': batch.queue,
+              },
+            });
 
             try {
+              const providerId = msg.body.providerId;
+              const historyId = msg.body.historyId;
+              const subscriptionName = msg.body.subscriptionName;
+
               const workflowRunner = env.WORKFLOW_RUNNER.get(env.WORKFLOW_RUNNER.newUniqueId());
               const result = await workflowRunner.runMainWorkflow({
                 providerId,
@@ -823,8 +1078,16 @@ export default class Entry extends WorkerEntrypoint<ZeroEnv> {
                 subscriptionName,
               });
               console.log('[THREAD_QUEUE] result', result);
+              span.setAttributes({
+                'workflow.result': typeof result === 'string' ? result : JSON.stringify(result),
+                'workflow.success': true,
+              });
             } catch (error) {
               console.error('Error running workflow', error);
+              span.recordException(error as Error);
+              span.setStatus({ code: 2, message: (error as Error).message });
+            } finally {
+              span.end();
             }
           }),
         );
@@ -833,6 +1096,68 @@ export default class Entry extends WorkerEntrypoint<ZeroEnv> {
     }
   }
   async scheduled() {
+    console.log('Running scheduled tasks...');
+
+    await this.processScheduledEmails();
+
+    await this.processExpiredSubscriptions();
+  }
+
+  private async processScheduledEmails() {
+    console.log('Checking for scheduled emails ready to be queued...');
+    const { scheduled_emails: scheduledKV, send_email_queue } = this.env as {
+      scheduled_emails: KVNamespace;
+      send_email_queue: Queue<IEmailSendBatch>;
+    };
+
+    try {
+      const now = Date.now();
+      const twelveHoursFromNow = now + 12 * 60 * 60 * 1000;
+
+      let cursor: string | undefined = undefined;
+      const batchSize = 1000;
+
+      do {
+        const listResp: {
+          keys: { name: string }[];
+          cursor?: string;
+        } = await scheduledKV.list({ cursor, limit: batchSize });
+        cursor = listResp.cursor;
+
+        for (const key of listResp.keys) {
+          try {
+            const scheduledData = await scheduledKV.get(key.name);
+            if (!scheduledData) continue;
+
+            const { messageId, connectionId, sendAt } = JSON.parse(scheduledData);
+
+            if (sendAt <= twelveHoursFromNow) {
+              const delaySeconds = Math.max(0, Math.floor((sendAt - now) / 1000));
+
+              console.log(`Queueing scheduled email ${messageId} with ${delaySeconds}s delay`);
+
+              const queueBody: IEmailSendBatch = {
+                messageId,
+                connectionId,
+                sendAt,
+              };
+
+              await send_email_queue.send(queueBody, { delaySeconds });
+              await scheduledKV.delete(key.name);
+
+              console.log(`Successfully queued scheduled email ${messageId}`);
+            }
+          } catch (error) {
+            console.error('Failed to process scheduled email key', key.name, error);
+          }
+        }
+      } while (cursor);
+    } catch (error) {
+      console.error('Error processing scheduled emails:', error);
+    }
+  }
+
+  private async processExpiredSubscriptions() {
     console.log('[SCHEDULED] Checking for expired subscriptions...');
     const { db, conn } = createDb(this.env.HYPERDRIVE.connectionString);
     const allAccounts = await db.query.connection.findMany({
@@ -860,7 +1185,7 @@ export default class Entry extends WorkerEntrypoint<ZeroEnv> {
 
       for (const key of listResp.keys) {
         try {
-          const wakeAtIso = (key as any).metadata?.wakeAt as string | undefined;
+          const wakeAtIso = key.metadata?.wakeAt as string | undefined;
           if (!wakeAtIso) continue;
           const wakeAt = new Date(wakeAtIso).getTime();
           if (wakeAt > nowTs) continue;
@@ -879,16 +1204,16 @@ export default class Entry extends WorkerEntrypoint<ZeroEnv> {
       }
     } while (cursor);
 
-    await Promise.all(
-      Object.entries(unsnoozeMap).map(async ([connectionId, { threadIds, keyNames }]) => {
-        try {
-          const agent = await getZeroClient(connectionId, this.ctx);
-          await agent.queue('unsnoozeThreadsHandler', { connectionId, threadIds, keyNames });
-        } catch (error) {
-          console.error('Failed to enqueue unsnooze tasks', { connectionId, threadIds, error });
-        }
-      }),
-    );
+    // await Promise.all(
+    //   Object.entries(unsnoozeMap).map(async ([connectionId, { threadIds, keyNames }]) => {
+    //     try {
+    //       const { stub: agent } = await getZeroAgent(connectionId, this.ctx);
+    //       await agent.queue('unsnoozeThreadsHandler', { connectionId, threadIds, keyNames });
+    //     } catch (error) {
+    //       console.error('Failed to enqueue unsnooze tasks', { connectionId, threadIds, error });
+    //     }
+    //   }),
+    // );
 
     await Promise.all(
       allAccounts.map(async ({ id, providerId }) => {
@@ -924,4 +1249,15 @@ export default class Entry extends WorkerEntrypoint<ZeroEnv> {
   }
 }
 
-export { ZeroAgent, ZeroMCP, ZeroDB, ZeroDriver, ThinkingMCP, WorkflowRunner };
+export {
+  ZeroAgent,
+  ZeroMCP,
+  ZeroDB,
+  ZeroDriver,
+  ThinkingMCP,
+  WorkflowRunner,
+  ThreadSyncWorker,
+  SyncThreadsWorkflow,
+  SyncThreadsCoordinatorWorkflow,
+  ShardRegistry,
+};
