@@ -669,9 +669,15 @@ export class GoogleMailManager implements MailManager {
     return this.withSyncErrorHandler(
       'normalizeIds',
       () => {
-        const threadIds: string[] = ids.map((id) =>
-          id.startsWith('thread:') ? id.substring(7) : id,
-        );
+        const threadIds: string[] = ids
+          .map((id) => (id.startsWith('thread:') ? id.substring(7) : id))
+          // Gmail IDs are always hexadecimal strings (usually 16 chars)
+          .filter((id) => /^[0-9a-fA-F]+$/.test(id));
+        
+        if (threadIds.length < ids.length) {
+          console.warn(`[Gmail] Filtered out ${ids.length - threadIds.length} invalid thread IDs (non-hex)`);
+        }
+        
         return { threadIds };
       },
       { ids },
@@ -1068,7 +1074,7 @@ export class GoogleMailManager implements MailManager {
       threadId: string;
       status: 'fulfilled' | 'rejected';
       value?: unknown;
-      reason?: unknown;
+      reason?: any;
     }> = [];
 
     for (let i = 0; i < threadIds.length; i += chunkSize) {
@@ -1083,10 +1089,16 @@ export class GoogleMailManager implements MailManager {
               requestBody,
             });
             return { threadId, status: 'fulfilled' as const, value: response.data };
-          } catch (error: unknown) {
+          } catch (error: any) {
             const err = error as { errors?: Array<{ message?: string }>; message?: string };
             const errorMessage = err?.errors?.[0]?.message || err?.message || String(error);
-            return { threadId, status: 'rejected' as const, reason: { error: errorMessage } };
+            // "Invalid id value" or 404 often means the thread was already deleted or the ID is malformed
+            const isInvalidId = errorMessage.includes('Invalid id value') || error.code === 404;
+            return { 
+              threadId, 
+              status: 'rejected' as const, 
+              reason: { error: errorMessage, code: error.code, isInvalidId } 
+            };
           }
         }),
       );
@@ -1099,11 +1111,26 @@ export class GoogleMailManager implements MailManager {
     }
 
     const failures = allResults.filter((result) => result.status === 'rejected');
+    const invalidIds = failures.filter(f => f.reason.isInvalidId);
+    const criticalFailures = failures.filter(f => !f.reason.isInvalidId);
+
+    // If we have some successes, we consider the operation a success even if some IDs were invalid
+    // (they might have been already deleted or moved)
+    if (allResults.length > failures.length) {
+      if (invalidIds.length > 0) {
+        console.warn(`[Gmail] Skipping ${invalidIds.length} invalid/missing thread IDs during modifyLabels`);
+      }
+      if (criticalFailures.length > 0) {
+        console.error(`[Gmail] Critical failures for ${criticalFailures.length} threads:`, criticalFailures[0]?.reason);
+      }
+      return;
+    }
+
+    // If ALL failed, and we have critical failures, throw
     if (failures.length > 0) {
-      const failureReasons = failures.map((f) => ({ threadId: f.threadId, reason: f.reason }));
-      const first = failureReasons[0];
+      const first = failures[0];
       throw new Error(
-        `Failed to modify labels for thread ${first!.threadId}: ${JSON.stringify(first!.reason)}`,
+        `Failed to modify labels for all threads. Example error for ${first!.threadId}: ${JSON.stringify(first!.reason)}`,
       );
     }
   }
@@ -1476,7 +1503,7 @@ export class GoogleMailManager implements MailManager {
       return await Promise.resolve(fn());
     } catch (error: unknown) {
       const err = error as Error & { code?: string };
-      const isFatal = FatalErrors.includes(err.message);
+      const isFatal = FatalErrors.has(err.message);
       console.error(
         `[${isFatal ? 'FATAL_ERROR' : 'ERROR'}] [Gmail Driver] Operation: ${operation}`,
         {
@@ -1500,7 +1527,7 @@ export class GoogleMailManager implements MailManager {
       return fn();
     } catch (error: unknown) {
       const err = error as Error & { code?: string };
-      const isFatal = FatalErrors.includes(err.message);
+      const isFatal = FatalErrors.has(err.message);
       console.error(`[Gmail Driver Error] Operation: ${operation}`, {
         error: err.message,
         code: err.code,

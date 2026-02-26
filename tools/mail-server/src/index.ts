@@ -206,17 +206,22 @@ wss.on('connection', async (ws, req) => {
       },
     }),
     deleteThreads: tool({
-      description: 'Move email threads to the trash. IMPORTANT: threadIds must be real IDs from searchEmails results (e.g. "18e2a3b4c5d6e7f8"), never placeholder text.',
+      description: 'Move email threads to the trash. IMPORTANT: threadIds must be exact alphanumeric IDs from searchEmails results (e.g. "18e2a3b4c5d6e7f8"). NEVER use subjects or sender names as IDs. If some IDs are invalid or already deleted, the tool will skip them and continue with others.',
       parameters: z.object({
-        threadIds: z.array(z.string()).describe('Array of exact thread ID strings from searchEmails results (e.g. ["18e2a3b4c5d6e7f8", "18e2a3b4c5d6e7f9"])'),
+        threadIds: z.array(z.string()).describe('Array of exact hexadecimal thread ID strings (e.g. ["18e2a3b4c5d6e7f8"])'),
       }),
       execute: async ({ threadIds }) => {
         try {
           if (!threadIds || threadIds.length === 0) return { success: false, error: 'No thread IDs provided' };
           const { threadIds: normalizedIds } = driver.normalizeIds(threadIds);
-          if (normalizedIds.length === 0) return { success: false, error: 'Invalid thread IDs provided' };
+          if (normalizedIds.length === 0) {
+            return { 
+              success: false, 
+              error: 'Invalid thread IDs provided. Ensure you are passing the "id" field from search results, not the subject or date.' 
+            };
+          }
           await driver.modifyLabels(normalizedIds, { addLabels: ['TRASH'], removeLabels: [] });
-          return { success: true, deletedCount: normalizedIds.length };
+          return { success: true, requestedCount: threadIds.length, processedCount: normalizedIds.length };
         } catch (error: any) {
           console.error('[AI agent] deleteThreads error:', error);
           return { success: false, error: error.message || 'Failed to delete threads' };

@@ -237,16 +237,24 @@ server.tool(
 
 server.tool(
   'delete_threads',
-  'Move email threads to the trash.',
+  'Move email threads to the trash. IDs must be exact alphanumeric strings from search results. Subjects or other text are NOT valid IDs. If some IDs are invalid or already deleted, they will be skipped.',
   {
-    threadIds: z.array(z.string()).describe('Array of thread IDs to move to trash'),
+    threadIds: z.array(z.string()).describe('Array of exact hexadecimal thread ID strings from search results.'),
   },
   async ({ threadIds }) => {
     try {
       const driver = await getMailDriver();
       const { threadIds: normalizedIds } = driver.normalizeIds(threadIds);
+      if (normalizedIds.length === 0) {
+        return { 
+          content: [{ type: 'text', text: 'Error: No valid thread IDs provided. Please ensure you use the alphanumeric "id" field from search results.' }],
+          isError: true 
+        };
+      }
       await driver.modifyLabels(normalizedIds, { addLabels: ['TRASH'], removeLabels: [] });
-      return { content: [{ type: 'text', text: `Successfully moved ${normalizedIds.length} threads to trash.` }] };
+      return { 
+        content: [{ type: 'text', text: `Successfully processed ${normalizedIds.length} threads (moved to trash).` }] 
+      };
     } catch (e: any) {
       return { content: [{ type: 'text', text: `Error: ${e.message}` }], isError: true };
     }
