@@ -36,7 +36,7 @@ app.use(
 
 // Health check (no auth required)
 app.get('/health', (c) => {
-  return c.json({ status: 'ok', service: 'mail-zero-server-node', version: '1.0.0' });
+  return c.json({ status: 'ok', service: 'mail-zero-server-node', version: '1.0.0-20260226-0110' });
 });
 
 // The AI agent WebSocket is attached directly to the HTTP server below (see wss setup).
@@ -211,9 +211,16 @@ wss.on('connection', async (ws, req) => {
         threadIds: z.array(z.string()).describe('Array of exact thread ID strings from searchEmails results (e.g. ["18e2a3b4c5d6e7f8", "18e2a3b4c5d6e7f9"])'),
       }),
       execute: async ({ threadIds }) => {
-        const { threadIds: normalizedIds } = driver.normalizeIds(threadIds);
-        await driver.modifyLabels(normalizedIds, { addLabels: ['TRASH'], removeLabels: [] });
-        return { success: true, deletedCount: normalizedIds.length };
+        try {
+          if (!threadIds || threadIds.length === 0) return { success: false, error: 'No thread IDs provided' };
+          const { threadIds: normalizedIds } = driver.normalizeIds(threadIds);
+          if (normalizedIds.length === 0) return { success: false, error: 'Invalid thread IDs provided' };
+          await driver.modifyLabels(normalizedIds, { addLabels: ['TRASH'], removeLabels: [] });
+          return { success: true, deletedCount: normalizedIds.length };
+        } catch (error: any) {
+          console.error('[AI agent] deleteThreads error:', error);
+          return { success: false, error: error.message || 'Failed to delete threads' };
+        }
       },
     }),
     markAsRead: tool({
@@ -222,9 +229,16 @@ wss.on('connection', async (ws, req) => {
         threadIds: z.array(z.string()).describe('Array of thread IDs to mark as read'),
       }),
       execute: async ({ threadIds }) => {
-        const { threadIds: normalizedIds } = driver.normalizeIds(threadIds);
-        await driver.markAsRead(normalizedIds);
-        return { success: true };
+        try {
+          if (!threadIds || threadIds.length === 0) return { success: false, error: 'No thread IDs provided' };
+          const { threadIds: normalizedIds } = driver.normalizeIds(threadIds);
+          if (normalizedIds.length === 0) return { success: false, error: 'Invalid thread IDs provided' };
+          await driver.markAsRead(normalizedIds);
+          return { success: true };
+        } catch (error: any) {
+          console.error('[AI agent] markAsRead error:', error);
+          return { success: false, error: error.message || 'Failed to mark as read' };
+        }
       },
     }),
     markAsUnread: tool({
@@ -233,9 +247,16 @@ wss.on('connection', async (ws, req) => {
         threadIds: z.array(z.string()).describe('Array of thread IDs to mark as unread'),
       }),
       execute: async ({ threadIds }) => {
-        const { threadIds: normalizedIds } = driver.normalizeIds(threadIds);
-        await driver.markAsUnread(normalizedIds);
-        return { success: true };
+        try {
+          if (!threadIds || threadIds.length === 0) return { success: false, error: 'No thread IDs provided' };
+          const { threadIds: normalizedIds } = driver.normalizeIds(threadIds);
+          if (normalizedIds.length === 0) return { success: false, error: 'Invalid thread IDs provided' };
+          await driver.markAsUnread(normalizedIds);
+          return { success: true };
+        } catch (error: any) {
+          console.error('[AI agent] markAsUnread error:', error);
+          return { success: false, error: error.message || 'Failed to mark as unread' };
+        }
       },
     }),
     archiveThreads: tool({
@@ -244,9 +265,16 @@ wss.on('connection', async (ws, req) => {
         threadIds: z.array(z.string()).describe('Array of thread IDs to archive'),
       }),
       execute: async ({ threadIds }) => {
-        const { threadIds: normalizedIds } = driver.normalizeIds(threadIds);
-        await driver.modifyLabels(normalizedIds, { addLabels: [], removeLabels: ['INBOX'] });
-        return { success: true, archivedCount: normalizedIds.length };
+        try {
+          if (!threadIds || threadIds.length === 0) return { success: false, error: 'No thread IDs provided' };
+          const { threadIds: normalizedIds } = driver.normalizeIds(threadIds);
+          if (normalizedIds.length === 0) return { success: false, error: 'Invalid thread IDs provided' };
+          await driver.modifyLabels(normalizedIds, { addLabels: [], removeLabels: ['INBOX'] });
+          return { success: true, archivedCount: normalizedIds.length };
+        } catch (error: any) {
+          console.error('[AI agent] archiveThreads error:', error);
+          return { success: false, error: error.message || 'Failed to archive threads' };
+        }
       },
     }),
     getEmailContent: tool({

@@ -54,4 +54,14 @@ CRITICAL RULES:
 
       return { response: text, toolCalls };
     }),
+
+  getPrompts: activeDriverProcedure.query(async () => {
+    return [];
+  }),
+
+  generateSummary: activeDriverProcedure
+    .input(z.object({ threadId: z.string() }))
+    .query(async () => {
+      return null;
+    }),
 });

@@ -11,15 +11,15 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Install turbo globally
-RUN npm install -g pnpm
-RUN pnpm install -g turbo
+RUN npm install -g pnpm turbo
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 RUN mkdir -p apps packages
 COPY apps/*/package.json ./apps/
 COPY packages/ ./packages/
+COPY patches/ ./patches/
 
-RUN pnpm install --prod --ignore-scripts
+RUN pnpm install --ignore-scripts || true
 
 
 # ========================================
@@ -32,6 +32,7 @@ RUN npm install -g pnpm wrangler
 
 # Copy workspace configuration and source code
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY patches/ ./patches/
 COPY . .
 
 ENV CI=true
