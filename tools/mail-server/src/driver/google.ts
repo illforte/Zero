@@ -670,12 +670,13 @@ export class GoogleMailManager implements MailManager {
       'normalizeIds',
       () => {
         const threadIds: string[] = ids
+          .map((id) => id.trim().replace(/^['"]|['"]$/g, ''))
           .map((id) => (id.startsWith('thread:') ? id.substring(7) : id))
           // Gmail IDs are always hexadecimal strings (usually 16 chars)
           .filter((id) => /^[0-9a-fA-F]+$/.test(id));
         
         if (threadIds.length < ids.length) {
-          console.warn(`[Gmail] Filtered out ${ids.length - threadIds.length} invalid thread IDs (non-hex)`);
+          console.warn(`[Gmail] Filtered out ${ids.length - threadIds.length} invalid thread IDs. Original: ${JSON.stringify(ids)}`);
         }
         
         return { threadIds };
@@ -1127,8 +1128,8 @@ export class GoogleMailManager implements MailManager {
     }
 
     // If ALL failed, and we have critical failures, throw
-    if (failures.length > 0) {
-      const first = failures[0];
+    if (criticalFailures.length > 0) {
+      const first = criticalFailures[0];
       throw new Error(
         `Failed to modify labels for all threads. Example error for ${first!.threadId}: ${JSON.stringify(first!.reason)}`,
       );

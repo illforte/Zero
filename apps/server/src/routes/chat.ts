@@ -28,10 +28,9 @@ import type { Message as ChatMessage } from 'ai';
 import { getPromptName } from '../pipelines';
 import { connection } from '../db/schema';
 import { getPrompt } from '../lib/brain';
-import { openai } from '@ai-sdk/openai';
+import { getModel } from '../lib/ai';
 import { and, eq } from 'drizzle-orm';
 import { McpAgent } from 'agents/mcp';
-import { groq } from '@ai-sdk/groq';
 import { createDb } from '../db';
 import { z } from 'zod';
 
@@ -367,7 +366,7 @@ export class ZeroAgent extends AIChatAgent<typeof env> {
         );
 
         const result = streamText({
-          model: openai('gpt-4o'),
+          model: getModel(),
           messages: processedMessages,
           tools,
           onFinish,
@@ -693,7 +692,7 @@ export class ZeroAgent extends AIChatAgent<typeof env> {
 
   async buildGmailSearchQuery(query: string) {
     const result = await generateText({
-      model: openai('gpt-4o'),
+      model: getModel(),
       system: GmailSearchAssistantSystemPrompt(),
       prompt: query,
     });
@@ -1253,7 +1252,7 @@ export class ZeroMCP extends McpAgent<typeof env, {}, { userId: string }> {
       },
       async (s) => {
         const result = await generateText({
-          model: openai('gpt-4o'),
+          model: getModel(),
           system: GmailSearchAssistantSystemPrompt(),
           prompt: s.query,
         });
@@ -1598,7 +1597,7 @@ const buildGmailSearchQuery = tool({
   }),
   execute: async ({ query }) => {
     const result = await generateObject({
-      model: openai('gpt-4o'),
+      model: getModel(),
       system: GmailSearchAssistantSystemPrompt(),
       prompt: query,
       schema: z.object({

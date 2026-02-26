@@ -39,15 +39,15 @@ export const getAnthropic = () => {
 };
 
 export const getModel = (modelName?: string, metadata?: ModelMetadata) => {
-  if (env.USE_OPENAI === 'true') {
-    return getOpenAI(metadata)(modelName || env.OPENAI_MODEL || 'gpt-4o');
+  if (env.USE_ANTHROPIC === 'true') {
+    return getAnthropic()(modelName || env.OPENAI_MODEL || 'claude-3-7-sonnet-20250219');
   }
-  return getAnthropic()(modelName || env.OPENAI_MODEL || 'claude-3-7-sonnet-20250219');
+  return getOpenAI(metadata)(modelName || env.OPENAI_MODEL || 'gpt-4o');
 };
 
 export const getMiniModel = (modelName?: string, metadata?: ModelMetadata) => {
-  if (env.USE_OPENAI === 'true') {
-    return getOpenAI(metadata)(modelName || env.OPENAI_MINI_MODEL || 'gpt-4o-mini');
+  if (env.USE_ANTHROPIC === 'true') {
+    return getAnthropic()(modelName || env.OPENAI_MINI_MODEL || 'claude-3-haiku-20240307');
   }
-  return getAnthropic()(modelName || env.OPENAI_MINI_MODEL || 'claude-3-haiku-20240307');
+  return getOpenAI(metadata)(modelName || env.OPENAI_MINI_MODEL || 'gpt-4o-mini');
 };
