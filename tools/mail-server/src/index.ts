@@ -113,6 +113,7 @@ const wss = new WebSocketServer({ noServer: true });
 
 wss.on('connection', async (ws, req) => {
   const sessions = new Map<string, AbortController>();
+  console.log(`[AI agent] New connection request from ${req.socket.remoteAddress}, URL: ${req.url}`);
 
   // Authenticate user once per connection
   const authHeaders = new Headers();
@@ -126,14 +127,19 @@ wss.on('connection', async (ws, req) => {
 
   const session = await auth.api
     .getSession({ headers: authHeaders })
-    .catch(() => null);
+    .catch((err) => {
+      console.error('[AI agent] Auth session error:', err);
+      return null;
+    });
 
   if (!session?.user) {
+    console.warn('[AI agent] Connection unauthorized - no valid session found');
     ws.close(1008, 'Unauthorized');
     return;
   }
 
   const userId = session.user.id;
+  console.log(`[AI agent] Authenticated user: ${session.user.email} (${userId})`);
   const db = getDb();
 
   // Get user's default connection or first available
@@ -155,9 +161,12 @@ wss.on('connection', async (ws, req) => {
   }
 
   if (!activeConnection) {
+    console.warn(`[AI agent] No mail connection found for user ${userId}`);
     ws.close(1008, 'No mail connection found');
     return;
   }
+
+  console.log(`[AI agent] Using mail connection: ${activeConnection.email} (${activeConnection.providerId})`);
 
   const driver = createDriver(activeConnection.providerId, {
     auth: {
@@ -357,16 +366,25 @@ wss.on('connection', async (ws, req) => {
   };
 
   ws.on('message', async (data: import('ws').RawData) => {
+    const rawData = data.toString();
+    console.log(`[AI agent] Received raw message: ${rawData.slice(0, 100)}${rawData.length > 100 ? '...' : ''}`);
+    
     let msg: Record<string, unknown>;
     try {
-      msg = JSON.parse(data.toString());
+      msg = JSON.parse(rawData);
+      console.log(`[AI agent] Parsed message type: ${msg.type}`);
     } catch {
+      console.error('[AI agent] Failed to parse WebSocket message');
       return;
     }
 
     if (msg.type === 'cf_agent_use_chat_request') {
+      console.log('[AI agent] Processing chat request...');
       const init = msg.init as { method?: string; body?: string } | undefined;
-      if (init?.method !== 'POST' || !init.body) return;
+      if (init?.method !== 'POST' || !init.body) {
+        console.warn('[AI agent] Invalid chat request init object');
+        return;
+      }
 
       const { messages } = JSON.parse(init.body) as { messages: { role: string; content: string }[] };
       const msgId = msg.id as string;
@@ -376,31 +394,55 @@ wss.on('connection', async (ws, req) => {
       const abortController = new AbortController();
       sessions.set(msgId, abortController);
 
-      try {
-        const litellm = createOpenAI({ apiKey: env.LITELLM_VIRTUAL_KEY, baseURL: env.LITELLM_BASE_URL });
-        const { textStream } = streamText({
-          model: litellm(env.LITELLM_MODEL),
-          system:
-            'You are a helpful email assistant. Help the user manage, read, summarize, and respond to their emails.\n' +
-            'CRITICAL RULES:\n' +
-            '1. You have tools to search, read, delete, archive, and label emails.\n' +
-            '2. For ANY destructive action (delete, archive, move), you MUST call searchEmails first to get real thread IDs.\n' +
-            '3. Thread IDs are long alphanumeric strings like "18e2a3b4c5d6e7f8". NEVER use placeholder text as IDs.\n' +
-            '4. When the user confirms (e.g. "yes", "do it", "go ahead"), ALWAYS re-search to get fresh thread IDs, then execute the action in the same turn.\n' +
-            '5. Pass the exact "id" field values from search results to delete/archive/mark tools. Never paraphrase or summarize IDs.\n' +
-            '6. Be concise and professional. Show counts and subjects, not raw IDs.',
-          messages: messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
-          tools: mailTools,
-          maxSteps: 10,
-          abortSignal: abortController.signal,
-        });
-
-        for await (const chunk of textStream) {
-          ws.send(
-            JSON.stringify({ id: msgId, type: 'cf_agent_use_chat_response', body: `0:${JSON.stringify(chunk)}\n`, done: false }),
-          );
-        }
-      } catch (e: unknown) {
+                  try {
+                    const modelName = env.LITELLM_MODEL || 'mail-zero-chat';
+                    const systemPrompt = 'You are a helpful email assistant. Help the user manage, read, summarize, and respond to their emails.\n' +
+                        'CRITICAL RULES:\n' +
+                        '1. You have tools to search, read, delete, archive, and label emails.\n' +
+                        '2. For ANY destructive action (delete, archive, move), you MUST call searchEmails first to get real thread IDs.\n' +
+                        '3. Thread IDs are long alphanumeric strings like "18e2a3b4c5d6e7f8". NEVER use placeholder text as IDs.\n' +
+                        '4. When the user confirms (e.g. "yes", "do it", "go ahead"), ALWAYS re-search to get fresh thread IDs, then execute the action in the same turn.\n' +
+                        '5. Pass the exact "id" field values from search results to delete/archive/mark tools. Never paraphrase or summarize IDs.\n' +
+                        '6. Be concise and professional. Show counts and subjects, not raw IDs.';
+                    
+                    console.log(`[AI agent] Starting streamText with model: ${modelName} (${messages.length} messages)`);
+                    console.log(`[AI agent] System prompt: ${systemPrompt.slice(0, 100)}...`);
+                    console.log(`[AI agent] Last message: ${JSON.stringify(messages[messages.length - 1])}`);
+                    
+                            const litellm = createOpenAI({ apiKey: env.LITELLM_VIRTUAL_KEY, baseURL: env.LITELLM_BASE_URL });
+                            console.log(`[AI agent] Tools available: ${Object.keys(mailTools).join(', ')}`);
+                            
+                            const { textStream } = streamText({
+                              model: litellm(modelName),
+                              system: systemPrompt,
+                              messages: messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+                              tools: mailTools,
+                              maxSteps: 10,
+                              abortSignal: abortController.signal,
+                              onFinish: (result) => {
+                                console.log(`[AI agent] streamText finished. Usage: ${JSON.stringify(result.usage)}`);
+                              },
+                              onError: (error) => {
+                                console.error('[AI agent] streamText error:', error);
+                              }
+                            });
+                    
+      
+              console.log('[AI agent] Stream opened, waiting for chunks...');
+              for await (const chunk of textStream) {
+                console.log(`[AI agent] Sending chunk (${chunk.length} chars)`);
+                ws.send(
+                  JSON.stringify({
+                    id: msgId,
+                    type: 'cf_agent_use_chat_response',
+                    body: `0:${JSON.stringify(chunk)}\n`,
+                    done: false,
+                  }),
+                );
+              }
+              console.log('[AI agent] Stream finished successfully');
+            } catch (e: unknown) {
+      
         if (!(e instanceof Error && e.name === 'AbortError')) {
           console.error('[AI agent] error:', e);
         }

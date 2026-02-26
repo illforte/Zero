@@ -348,7 +348,7 @@ function AISidebar({ className }: AISidebarProps) {
   const agent = useAgent({
     agent: 'ZeroAgent',
     name: activeConnection?.id ? String(activeConnection.id) : 'general',
-    host: `${import.meta.env.VITE_PUBLIC_BACKEND_URL}`,
+    host: 'http://REPLACE-BACKEND-URL.com',
     onError: (e) => console.log(e),
   });
 
