@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { dismissWelcomeModal, navigateToInbox, injectCfAccessHeaders } from './helpers';
+import { dismissWelcomeModal, navigateToInbox, bypassCfAccess } from './helpers';
 
 test.describe('lair404: Browser Health Checks', () => {
   test('App loads and shows inbox with email threads', async ({ page }) => {
@@ -14,7 +14,7 @@ test.describe('lair404: Browser Health Checks', () => {
   });
 
   test('Settings page shows 10+ connections', async ({ page }) => {
-    await injectCfAccessHeaders(page);
+    await bypassCfAccess(page);
     await page.goto('/settings/connections');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(3000);

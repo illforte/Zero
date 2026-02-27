@@ -11,6 +11,8 @@ setup('inject lair404 authentication session', async ({ page }) => {
   const SessionToken = process.env.PLAYWRIGHT_SESSION_TOKEN;
   const SessionData = process.env.PLAYWRIGHT_SESSION_DATA;
   const userEmail = process.env.EMAIL || 'fscheugenpflug4@googlemail.com';
+  const serverUrl = process.env.SERVER_URL || 'http://127.0.0.1:3051';
+  const frontendUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3050';
 
   if (!SessionToken || !SessionData) {
     throw new Error(
@@ -20,24 +22,42 @@ setup('inject lair404 authentication session', async ({ page }) => {
     );
   }
 
-  // Intercept all API requests and inject CF Access bypass headers.
-  // On lair404 production, frontdoor-auth adds these headers after JWT validation.
-  // For localhost testing, we simulate this bypass so the server accepts our session.
+  // Rewrite production URLs to localhost — same logic as bypassCfAccess in helpers.ts
   await page.route('**/*', async (route) => {
-    const request = route.request();
-    const url = request.url();
+    const url = route.request().url();
 
-    // Add CF Access headers to API/tRPC calls to the server
-    if (url.includes('/api/') || url.includes('/trpc/')) {
-      const headers = {
-        ...request.headers(),
-        'x-auth-verified': 'cf-access',
-        'x-cf-user-email': userEmail,
-      };
-      await route.continue({ headers });
-    } else {
-      await route.continue();
+    if (url.includes('mail-api.lair404.xyz')) {
+      const localUrl = url.replace('https://mail-api.lair404.xyz', serverUrl);
+      await route.continue({
+        url: localUrl,
+        headers: {
+          ...route.request().headers(),
+          'x-auth-verified': 'cf-access',
+          'x-cf-user-email': userEmail,
+          host: '127.0.0.1:3051',
+        },
+      });
+      return;
     }
+
+    if (url.includes('mail.lair404.xyz') && !url.includes('mail-api.lair404.xyz')) {
+      const localUrl = url.replace('https://mail.lair404.xyz', frontendUrl);
+      await route.continue({ url: localUrl });
+      return;
+    }
+
+    if (url.includes('/api/') || url.includes('/trpc/')) {
+      await route.continue({
+        headers: {
+          ...route.request().headers(),
+          'x-auth-verified': 'cf-access',
+          'x-cf-user-email': userEmail,
+        },
+      });
+      return;
+    }
+
+    await route.continue();
   });
 
   await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 60_000 });
@@ -64,7 +84,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
       sameSite: 'Lax',
     },
   ]);
-  console.log('Session cookies + CF Access headers injected');
+  console.log('Session cookies injected for 127.0.0.1');
 
   try {
     const decodedSessionData = JSON.parse(atob(SessionData));

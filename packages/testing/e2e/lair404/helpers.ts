@@ -1,15 +1,50 @@
 import { type Page, expect } from '@playwright/test';
 
 /**
- * Inject CF Access bypass headers on all API/tRPC requests.
- * On lair404 production, frontdoor-auth adds these after JWT validation.
- * For localhost tests, we simulate this so the server accepts our session.
- * Must be called at the start of each test.
+ * Bypass Cloudflare Access for localhost testing.
+ *
+ * The frontend is built with production URLs baked in:
+ *   VITE_PUBLIC_BACKEND_URL = https://mail-api.lair404.xyz
+ *   VITE_PUBLIC_APP_URL     = https://mail.lair404.xyz
+ *
+ * When the auth-client makes XHR requests, they go to the production domain,
+ * which hits CF Access at the edge and redirects to login. To test on localhost,
+ * we intercept these requests and rewrite them to the local server, adding the
+ * CF Access bypass headers that frontdoor-auth normally injects.
+ *
+ * Must be called at the start of each test (before any navigation).
  */
-export async function injectCfAccessHeaders(page: Page): Promise<void> {
+export async function bypassCfAccess(page: Page): Promise<void> {
   const userEmail = process.env.EMAIL || 'fscheugenpflug4@googlemail.com';
+  const serverUrl = process.env.SERVER_URL || 'http://127.0.0.1:3051';
+  const frontendUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3050';
+
   await page.route('**/*', async (route) => {
     const url = route.request().url();
+
+    // Rewrite production backend URLs to localhost server
+    if (url.includes('mail-api.lair404.xyz')) {
+      const localUrl = url.replace('https://mail-api.lair404.xyz', serverUrl);
+      await route.continue({
+        url: localUrl,
+        headers: {
+          ...route.request().headers(),
+          'x-auth-verified': 'cf-access',
+          'x-cf-user-email': userEmail,
+          host: '127.0.0.1:3051',
+        },
+      });
+      return;
+    }
+
+    // Rewrite production frontend URLs to localhost (e.g. /cf-access/callback redirects)
+    if (url.includes('mail.lair404.xyz') && !url.includes('mail-api.lair404.xyz')) {
+      const localUrl = url.replace('https://mail.lair404.xyz', frontendUrl);
+      await route.continue({ url: localUrl });
+      return;
+    }
+
+    // Add CF Access bypass headers to any localhost API/tRPC calls
     if (url.includes('/api/') || url.includes('/trpc/')) {
       await route.continue({
         headers: {
@@ -18,9 +53,10 @@ export async function injectCfAccessHeaders(page: Page): Promise<void> {
           'x-cf-user-email': userEmail,
         },
       });
-    } else {
-      await route.continue();
+      return;
     }
+
+    await route.continue();
   });
 }
 
@@ -47,7 +83,7 @@ export async function dismissWelcomeModal(page: Page): Promise<void> {
  * depending on connection state and mailbox contents.
  */
 export async function navigateToInbox(page: Page): Promise<void> {
-  await injectCfAccessHeaders(page);
+  await bypassCfAccess(page);
   await page.goto('/mail/inbox');
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(3000);
