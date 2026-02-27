@@ -20,15 +20,15 @@ if (!MCP_EMAIL_API_KEY) {
 const EXPECTED_TOOLS = [
   'search_emails',
   'get_email_content',
-  'list_labels',
+  'summarize_thread',
   'get_mailbox_stats',
   'reply_to_thread',
-  'forward_email',
   'mark_as_spam',
-  'delete_email',
-  'archive_email',
+  'delete_threads',
+  'archive_threads',
   'send_email',
-  'modify_labels',
+  'list_labels',
+  'unsubscribe',
 ];
 
 describe('Phase 2a: MCP Email Protocol (SSE)', () => {

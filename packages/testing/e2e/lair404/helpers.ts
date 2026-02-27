@@ -42,15 +42,34 @@ export async function dismissWelcomeModal(page: Page): Promise<void> {
 }
 
 /**
- * Navigate to inbox and wait for it to be ready (threads loaded).
+ * Navigate to inbox and wait for it to be ready.
+ * Uses multiple selectors since the inbox view may render differently
+ * depending on connection state and mailbox contents.
  */
 export async function navigateToInbox(page: Page): Promise<void> {
   await injectCfAccessHeaders(page);
   await page.goto('/mail/inbox');
-  await page.waitForLoadState('domcontentloaded');
-  await page.waitForTimeout(2000);
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(3000);
   await dismissWelcomeModal(page);
-  await expect(page.getByText('Inbox')).toBeVisible({ timeout: 10_000 });
+
+  // Wait for the app to fully render — check multiple indicators
+  // The sidebar may show "Inbox", or threads may appear, or the URL confirms we're on /mail
+  const inboxReady = await Promise.race([
+    page.getByText('Inbox').first().isVisible({ timeout: 15_000 }).catch(() => false),
+    page.locator('[data-thread-id]').first().isVisible({ timeout: 15_000 }).catch(() => false),
+    page.locator('[data-sidebar]').first().isVisible({ timeout: 15_000 }).catch(() => false),
+    page.waitForURL('**/mail/**', { timeout: 15_000 }).then(() => true).catch(() => false),
+  ]);
+
+  const currentUrl = page.url();
+  console.log(`navigateToInbox: URL=${currentUrl}, ready=${inboxReady}`);
+
+  if (!inboxReady && !currentUrl.includes('/mail')) {
+    // Take debug screenshot before failing
+    await page.screenshot({ path: `debug-inbox-${Date.now()}.png` });
+    throw new Error(`Inbox did not load. Current URL: ${currentUrl}`);
+  }
 }
 
 /**

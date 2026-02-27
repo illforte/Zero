@@ -57,7 +57,7 @@ describe('Phase 2b: Google Workspace MCP (streamable-http)', () => {
     assert.ok(tools.length >= 100, `Expected >= 100 tools, got ${tools.length}`);
 
     const toolNames = tools.map((t) => t.name);
-    const keyTools = ['search_drive_files', 'create_doc', 'list_events'];
+    const keyTools = ['search_drive_files', 'create_doc', 'get_events'];
     for (const name of keyTools) {
       assert.ok(toolNames.includes(name), `Missing key tool: ${name}`);
     }
@@ -127,9 +127,9 @@ describe('Phase 2b: Google Workspace MCP (streamable-http)', () => {
     console.log(`  Moved to folder: ${GWS_TEST_FOLDER_ID}`);
   });
 
-  it('7. list_events (Calendar) — returns events or empty', async () => {
+  it('7. get_events (Calendar) — returns events or empty', async () => {
     const res = await client.send('tools/call', {
-      name: 'list_events',
+      name: 'get_events',
       arguments: { max_results: 5 },
     });
     assert.ok(res.result, 'list_events should return a result');
