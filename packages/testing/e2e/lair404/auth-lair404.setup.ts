@@ -82,14 +82,27 @@ setup('inject lair404 authentication session', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 60_000 });
   console.log('Page loaded');
 
-  // Fetch the real session data from the API and inject into localStorage.
+  // Fetch the real session data directly from the backend server.
+  // The frontend's /api/ route may not proxy correctly, so call the server directly.
   // This ensures useSession() gets the correct user object shape from Better Auth.
   try {
-    const sessionData = await page.evaluate(async () => {
-      const res = await fetch('/api/auth/get-session', { credentials: 'include' });
-      if (!res.ok) return null;
-      return await res.json();
-    });
+    const sessionUrl = `${serverUrl}/api/auth/get-session`;
+    console.log(`Fetching session from: ${sessionUrl}`);
+    const sessionData = await page.evaluate(async ({ url, token, email }) => {
+      const res = await fetch(url, {
+        headers: {
+          'cookie': `better-auth-dev.session_token=${token}`,
+          'x-auth-verified': 'cf-access',
+          'x-cf-user-email': email,
+        },
+      });
+      if (!res.ok) {
+        console.log('Session fetch failed:', res.status, await res.text().then(t => t.substring(0, 200)));
+        return null;
+      }
+      const text = await res.text();
+      try { return JSON.parse(text); } catch { return null; }
+    }, { url: sessionUrl, token: SessionToken, email: userEmail });
 
     if (sessionData) {
       console.log('Session data from API:', JSON.stringify(sessionData).substring(0, 200));
