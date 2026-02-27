@@ -82,44 +82,41 @@ setup('inject lair404 authentication session', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 60_000 });
   console.log('Page loaded');
 
-  // Fetch the real session data directly from the backend server.
-  // The frontend's /api/ route may not proxy correctly, so call the server directly.
+  // Fetch the real session data directly from the backend using Node.js fetch
+  // (NOT page.evaluate, which runs in the browser and hits CORS).
   // This ensures useSession() gets the correct user object shape from Better Auth.
   try {
     const sessionUrl = `${serverUrl}/api/auth/get-session`;
-    console.log(`Fetching session from: ${sessionUrl}`);
-    const sessionData = await page.evaluate(async ({ url, token, email }) => {
-      const res = await fetch(url, {
-        headers: {
-          'cookie': `better-auth-dev.session_token=${token}`,
-          'x-auth-verified': 'cf-access',
-          'x-cf-user-email': email,
-        },
-      });
-      if (!res.ok) {
-        console.log('Session fetch failed:', res.status, await res.text().then(t => t.substring(0, 200)));
-        return null;
+    console.log(`Fetching session from: ${sessionUrl} (Node.js fetch)`);
+    const res = await fetch(sessionUrl, {
+      headers: {
+        cookie: `better-auth-dev.session_token=${SessionToken}`,
+        'x-auth-verified': 'cf-access',
+        'x-cf-user-email': userEmail,
+      },
+    });
+    console.log(`Session API response: ${res.status}`);
+
+    if (res.ok) {
+      const sessionData = await res.json();
+      console.log('Session data from API:', JSON.stringify(sessionData).substring(0, 300));
+
+      if (sessionData && (sessionData.session || sessionData.user)) {
+        await page.evaluate((data) => {
+          if (data.session) {
+            localStorage.setItem('better-auth.session', JSON.stringify(data.session));
+          }
+          if (data.user) {
+            localStorage.setItem('better-auth.user', JSON.stringify(data.user));
+          }
+        }, sessionData);
+        console.log('Session data injected into localStorage from API');
+      } else {
+        console.log('WARNING: Session API returned unexpected shape:', Object.keys(sessionData));
       }
-      const text = await res.text();
-      try { return JSON.parse(text); } catch { return null; }
-    }, { url: sessionUrl, token: SessionToken, email: userEmail });
-
-    if (sessionData) {
-      console.log('Session data from API:', JSON.stringify(sessionData).substring(0, 200));
-
-      await page.evaluate((data) => {
-        // Better Auth stores session and user separately in localStorage
-        if (data.session) {
-          localStorage.setItem('better-auth.session', JSON.stringify(data.session));
-        }
-        if (data.user) {
-          localStorage.setItem('better-auth.user', JSON.stringify(data.user));
-        }
-      }, sessionData);
-
-      console.log('Session data injected into localStorage from API');
     } else {
-      console.log('WARNING: Could not fetch session data from API');
+      const text = await res.text();
+      console.log('WARNING: Session API returned', res.status, text.substring(0, 200));
     }
   } catch (error) {
     console.log('Could not fetch session data:', error);
