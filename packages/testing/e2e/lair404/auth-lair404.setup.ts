@@ -1,4 +1,4 @@
-import { test as setup, expect } from '@playwright/test';
+import { test as setup } from '@playwright/test';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -28,7 +28,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
       const localUrl = url.replace('https://mail-api.lair404.xyz', serverUrl);
       const existingCookie = route.request().headers()['cookie'] || '';
       // Only add session cookie if we have a token
-      const sessionCookie = SessionToken ? `better-auth-dev.session_token=${SessionToken}` : '';
+      const sessionCookie = SessionToken ? `better-auth.session_token=${SessionToken}` : '';
       const cookie = sessionCookie ? (existingCookie ? `${existingCookie}; ${sessionCookie}` : sessionCookie) : existingCookie;
       await route.continue({
         url: localUrl,
@@ -68,7 +68,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
   if (SessionToken) {
     await page.context().addCookies([
       {
-        name: 'better-auth-dev.session_token',
+        name: 'better-auth.session_token',
         value: SessionToken,
         domain: '127.0.0.1',
         path: '/',
@@ -95,7 +95,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
       console.log(`Fetching session from: ${sessionUrl} (Node.js fetch)`);
       const res = await fetch(sessionUrl, {
         headers: {
-          cookie: `better-auth-dev.session_token=${SessionToken}`,
+          cookie: `better-auth.session_token=${SessionToken}`,
           'x-auth-verified': 'cf-access',
           'x-cf-user-email': userEmail,
         },

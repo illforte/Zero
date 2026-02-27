@@ -22,7 +22,7 @@ export async function bypassCfAccess(page: Page): Promise<void> {
 
   // Build the session cookie string that Better Auth expects
   const sessionCookie = sessionToken
-    ? `better-auth-dev.session_token=${sessionToken}`
+    ? `better-auth.session_token=${sessionToken}`
     : '';
 
   await page.route('**/*', async (route) => {
