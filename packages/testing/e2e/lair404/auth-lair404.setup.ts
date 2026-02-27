@@ -1,4 +1,4 @@
-import { test as setup } from '@playwright/test';
+import { test as setup, expect } from '@playwright/test';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -9,32 +9,27 @@ setup('inject lair404 authentication session', async ({ page }) => {
   console.log('Injecting lair404 authentication session...');
 
   const SessionToken = process.env.PLAYWRIGHT_SESSION_TOKEN;
-  const SessionData = process.env.PLAYWRIGHT_SESSION_DATA;
   const userEmail = process.env.EMAIL || 'fscheugenpflug4@googlemail.com';
   const serverUrl = process.env.SERVER_URL || 'http://127.0.0.1:3051';
   const frontendUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3050';
 
-  if (!SessionToken || !SessionData) {
+  if (!SessionToken) {
     throw new Error(
-      'PLAYWRIGHT_SESSION_TOKEN and PLAYWRIGHT_SESSION_DATA must be set. ' +
+      'PLAYWRIGHT_SESSION_TOKEN must be set. ' +
         'Extract from DB: docker exec mail-zero-db psql -U mailzero -d mailzero ' +
         '-c "SELECT token FROM mail0_session WHERE expires_at > NOW() ORDER BY expires_at DESC LIMIT 1;"',
     );
   }
 
-  // Rewrite production URLs to localhost — same logic as bypassCfAccess in helpers.ts
+  // Rewrite production URLs to localhost and inject session cookie
   await page.route('**/*', async (route) => {
     const url = route.request().url();
 
     if (url.includes('mail-api.lair404.xyz')) {
       const localUrl = url.replace('https://mail-api.lair404.xyz', serverUrl);
-      const sessionCookie = SessionToken
-        ? `better-auth-dev.session_token=${SessionToken}`
-        : '';
+      const sessionCookie = `better-auth-dev.session_token=${SessionToken}`;
       const existingCookie = route.request().headers()['cookie'] || '';
-      const cookie = existingCookie
-        ? `${existingCookie}; ${sessionCookie}`
-        : sessionCookie;
+      const cookie = existingCookie ? `${existingCookie}; ${sessionCookie}` : sessionCookie;
       await route.continue({
         url: localUrl,
         headers: {
@@ -50,8 +45,6 @@ setup('inject lair404 authentication session', async ({ page }) => {
 
     if (url.includes('mail.lair404.xyz') && !url.includes('mail-api.lair404.xyz')) {
       const localUrl = url.replace('https://mail.lair404.xyz', frontendUrl);
-      // Must use route.fetch() + route.fulfill() because route.continue() forbids protocol changes
-      // (https → http), which would otherwise throw "New URL must have same protocol as overridden URL".
       const response = await route.fetch({ url: localUrl });
       await route.fulfill({ response });
       return;
@@ -71,10 +64,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
     await route.continue();
   });
 
-  await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 60_000 });
-  console.log('Page loaded, setting up authentication...');
-
-  // On lair404, tests hit http://127.0.0.1:3050 — domain is 127.0.0.1
+  // Set session cookie for 127.0.0.1
   await page.context().addCookies([
     {
       name: 'better-auth-dev.session_token',
@@ -85,33 +75,44 @@ setup('inject lair404 authentication session', async ({ page }) => {
       secure: false,
       sameSite: 'Lax',
     },
-    {
-      name: 'better-auth-dev.session_data',
-      value: SessionData,
-      domain: '127.0.0.1',
-      path: '/',
-      httpOnly: true,
-      secure: false,
-      sameSite: 'Lax',
-    },
   ]);
-  console.log('Session cookies injected for 127.0.0.1');
+  console.log('Session cookie injected');
 
+  // Navigate and let the app load
+  await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  console.log('Page loaded');
+
+  // Fetch the real session data from the API and inject into localStorage.
+  // This ensures useSession() gets the correct user object shape from Better Auth.
   try {
-    const decodedSessionData = JSON.parse(atob(SessionData));
+    const sessionData = await page.evaluate(async () => {
+      const res = await fetch('/api/auth/get-session', { credentials: 'include' });
+      if (!res.ok) return null;
+      return await res.json();
+    });
 
-    await page.addInitScript((sessionData) => {
-      if (sessionData.session) {
-        localStorage.setItem('better-auth.session', JSON.stringify(sessionData.session.session));
-        localStorage.setItem('better-auth.user', JSON.stringify(sessionData.session.user));
-      }
-    }, decodedSessionData);
+    if (sessionData) {
+      console.log('Session data from API:', JSON.stringify(sessionData).substring(0, 200));
 
-    console.log('Session data set in localStorage');
+      await page.evaluate((data) => {
+        // Better Auth stores session and user separately in localStorage
+        if (data.session) {
+          localStorage.setItem('better-auth.session', JSON.stringify(data.session));
+        }
+        if (data.user) {
+          localStorage.setItem('better-auth.user', JSON.stringify(data.user));
+        }
+      }, sessionData);
+
+      console.log('Session data injected into localStorage from API');
+    } else {
+      console.log('WARNING: Could not fetch session data from API');
+    }
   } catch (error) {
-    console.log('Could not decode session data for localStorage:', error);
+    console.log('Could not fetch session data:', error);
   }
 
+  // Reload to pick up localStorage changes
   await page.goto('/mail/inbox');
   await page.waitForLoadState('domcontentloaded');
 
