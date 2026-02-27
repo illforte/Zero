@@ -46,7 +46,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
     if (url.includes('mail-api.lair404.xyz')) {
       const localUrl = url.replace('https://mail-api.lair404.xyz', serverUrl);
       const existingCookie = route.request().headers()['cookie'] || '';
-      const sessionCookie = signedToken ? `better-auth.session_token=${signedToken}` : '';
+      const sessionCookie = signedToken ? `__Secure-better-auth.session_token=${signedToken}` : '';
       const cookie = sessionCookie ? (existingCookie ? `${existingCookie}; ${sessionCookie}` : sessionCookie) : existingCookie;
       await route.continue({
         url: localUrl,
@@ -56,6 +56,56 @@ setup('inject lair404 authentication session', async ({ page }) => {
           'x-cf-user-email': userEmail,
           host: '127.0.0.1:3051',
           ...(cookie ? { cookie } : {}),
+        },
+      });
+      return;
+    }
+
+    // Mock nginx endpoints that the server doesn't serve
+    if (url.includes('mail.lair404.xyz') && url.includes('/api/autumn/')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          customerId: 'self-hosted', plan: 'pro_annual',
+          features: {
+            'connections': { unlimited: true, balance: 999, included_usage: 999, usage: 0 },
+            'chat-messages': { unlimited: true, balance: 999, included_usage: 999, usage: 0 },
+            'brain-activity': { unlimited: true, balance: 999, included_usage: 999, usage: 0 },
+          },
+          unlimited: true, credits: null,
+          products: [{ id: 'pro_annual', name: 'Pro Annual', status: 'active' }],
+        }),
+      });
+      return;
+    }
+
+    if (url.includes('mail.lair404.xyz') && url.includes('/api/public/providers')) {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+      return;
+    }
+
+    // Rewrite API/auth/tRPC calls under mail.lair404.xyz to localhost server.
+    if (
+      url.includes('mail.lair404.xyz') &&
+      !url.includes('mail-api.lair404.xyz') &&
+      (url.includes('/api/') || url.includes('/trpc/'))
+    ) {
+      // Replicate nginx rewrite: /api/trpc/X → /trpc/X
+      const rawLocalUrl = url.replace('https://mail.lair404.xyz', serverUrl);
+      const localUrl = rawLocalUrl.replace('/api/trpc/', '/trpc/');
+      const existingCookie = route.request().headers()['cookie'] || '';
+      const cookieHeader = signedToken
+        ? (existingCookie ? `${existingCookie}; __Secure-better-auth.session_token=${signedToken}` : `__Secure-better-auth.session_token=${signedToken}`)
+        : existingCookie;
+      await route.continue({
+        url: localUrl,
+        headers: {
+          ...route.request().headers(),
+          'x-auth-verified': 'cf-access',
+          'x-cf-user-email': userEmail,
+          host: '127.0.0.1:3051',
+          ...(cookieHeader ? { cookie: cookieHeader } : {}),
         },
       });
       return;
@@ -111,7 +161,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
       console.log(`Fetching session from: ${sessionUrl}`);
       const res = await fetch(sessionUrl, {
         headers: {
-          cookie: `better-auth.session_token=${signedToken}`,
+          cookie: `__Secure-better-auth.session_token=${signedToken}`,
           'x-auth-verified': 'cf-access',
           'x-cf-user-email': userEmail,
         },
