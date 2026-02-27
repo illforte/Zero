@@ -1,24 +1,43 @@
 import { test as setup } from '@playwright/test';
+import { createHmac } from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const authFile = path.join(__dirname, '../../playwright/.auth/user-lair404.json');
 
+/**
+ * Sign a cookie value to match better-call's serializeSignedCookie format.
+ * Format: encodeURIComponent(`${value}.${standardBase64_hmac_sha256(value, secret)}`)
+ *
+ * Critical: better-call's guard checks signature.length === 44 && signature.endsWith("=")
+ */
+function signCookieValue(value: string, secret: string): string {
+  const sig = createHmac('sha256', secret)
+    .update(value)
+    .digest('base64'); // standard base64 WITH padding
+  return encodeURIComponent(`${value}.${sig}`);
+}
+
 setup('inject lair404 authentication session', async ({ page }) => {
   console.log('Injecting lair404 authentication session...');
 
-  let SessionToken = process.env.PLAYWRIGHT_SESSION_TOKEN;
+  const rawToken = process.env.PLAYWRIGHT_SESSION_TOKEN;
+  const authSecret = process.env.BETTER_AUTH_SECRET;
   const userEmail = process.env.EMAIL || 'fscheugenpflug4@googlemail.com';
   const serverUrl = process.env.SERVER_URL || 'http://127.0.0.1:3051';
   const frontendUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3050';
 
-  // If no token is provided, try to create one by authenticating first
-  if (!SessionToken) {
-    console.log('No PLAYWRIGHT_SESSION_TOKEN provided. Attempting to authenticate via signup/login...');
-    // The session will be created during the test flow, so continue without initial token
-    // The page route handler below will work even with empty token
+  if (!rawToken) {
+    console.log('No PLAYWRIGHT_SESSION_TOKEN — auth tests will fail');
   }
+  if (!authSecret) {
+    console.log('No BETTER_AUTH_SECRET — cookie signing disabled, auth may fail');
+  }
+
+  // Sign the token the same way Better Auth does
+  const signedToken = rawToken && authSecret ? signCookieValue(rawToken, authSecret) : rawToken || '';
+  console.log(`Token signed: ${!!authSecret}, length: ${signedToken.length}`);
 
   // Rewrite production URLs to localhost and inject session cookie
   await page.route('**/*', async (route) => {
@@ -27,8 +46,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
     if (url.includes('mail-api.lair404.xyz')) {
       const localUrl = url.replace('https://mail-api.lair404.xyz', serverUrl);
       const existingCookie = route.request().headers()['cookie'] || '';
-      // Only add session cookie if we have a token
-      const sessionCookie = SessionToken ? `better-auth.session_token=${SessionToken}` : '';
+      const sessionCookie = signedToken ? `better-auth.session_token=${signedToken}` : '';
       const cookie = sessionCookie ? (existingCookie ? `${existingCookie}; ${sessionCookie}` : sessionCookie) : existingCookie;
       await route.continue({
         url: localUrl,
@@ -64,12 +82,12 @@ setup('inject lair404 authentication session', async ({ page }) => {
     await route.continue();
   });
 
-  // Set session cookie for 127.0.0.1 if we have a token
-  if (SessionToken) {
+  // Set signed session cookie for 127.0.0.1
+  if (signedToken) {
     await page.context().addCookies([
       {
         name: 'better-auth.session_token',
-        value: SessionToken,
+        value: signedToken,
         domain: '127.0.0.1',
         path: '/',
         httpOnly: true,
@@ -77,25 +95,23 @@ setup('inject lair404 authentication session', async ({ page }) => {
         sameSite: 'Lax',
       },
     ]);
-    console.log('Session cookie injected');
+    console.log('Signed session cookie injected');
   } else {
-    console.log('No session token to inject, will authenticate during test');
+    console.log('No session token to inject');
   }
 
   // Navigate and let the app load
   await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 60_000 });
   console.log('Page loaded');
 
-  // Fetch the real session data directly from the backend using Node.js fetch
-  // (NOT page.evaluate, which runs in the browser and hits CORS).
-  // This ensures useSession() gets the correct user object shape from Better Auth.
-  if (SessionToken) {
+  // Fetch real session data from the backend using the signed cookie
+  if (signedToken) {
     try {
       const sessionUrl = `${serverUrl}/api/auth/get-session`;
-      console.log(`Fetching session from: ${sessionUrl} (Node.js fetch)`);
+      console.log(`Fetching session from: ${sessionUrl}`);
       const res = await fetch(sessionUrl, {
         headers: {
-          cookie: `better-auth.session_token=${SessionToken}`,
+          cookie: `better-auth.session_token=${signedToken}`,
           'x-auth-verified': 'cf-access',
           'x-cf-user-email': userEmail,
         },
@@ -104,7 +120,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
 
       if (res.ok) {
         const sessionData = await res.json();
-        console.log('Session data from API:', JSON.stringify(sessionData).substring(0, 300));
+        console.log('Session data:', JSON.stringify(sessionData).substring(0, 300));
 
         if (sessionData && (sessionData.session || sessionData.user)) {
           await page.evaluate((data) => {
@@ -115,7 +131,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
               localStorage.setItem('better-auth.user', JSON.stringify(data.user));
             }
           }, sessionData);
-          console.log('Session data injected into localStorage from API');
+          console.log('Session data injected into localStorage');
         } else {
           console.log('WARNING: Session API returned unexpected shape:', Object.keys(sessionData));
         }
@@ -126,8 +142,6 @@ setup('inject lair404 authentication session', async ({ page }) => {
     } catch (error) {
       console.log('Could not fetch session data:', error);
     }
-  } else {
-    console.log('Skipping session fetch: no token available. Auth will happen during test.');
   }
 
   // Reload to pick up localStorage changes

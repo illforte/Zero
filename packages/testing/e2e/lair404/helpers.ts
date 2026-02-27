@@ -1,4 +1,27 @@
 import { type Page, expect } from '@playwright/test';
+import { createHmac } from 'crypto';
+
+/**
+ * Sign a cookie value to match better-call's serializeSignedCookie format.
+ * Format: encodeURIComponent(`${value}.${standardBase64_hmac_sha256(value, secret)}`)
+ */
+function signCookieValue(value: string, secret: string): string {
+  const sig = createHmac('sha256', secret)
+    .update(value)
+    .digest('base64');
+  return encodeURIComponent(`${value}.${sig}`);
+}
+
+/**
+ * Get the signed session cookie value from env vars.
+ * Returns empty string if no token or secret available.
+ */
+function getSignedSessionCookie(): string {
+  const rawToken = process.env.PLAYWRIGHT_SESSION_TOKEN || '';
+  const authSecret = process.env.BETTER_AUTH_SECRET || '';
+  if (!rawToken) return '';
+  return rawToken && authSecret ? signCookieValue(rawToken, authSecret) : rawToken;
+}
 
 /**
  * Bypass Cloudflare Access for localhost testing.
@@ -18,25 +41,23 @@ export async function bypassCfAccess(page: Page): Promise<void> {
   const userEmail = process.env.EMAIL || 'fscheugenpflug4@googlemail.com';
   const serverUrl = process.env.SERVER_URL || 'http://127.0.0.1:3051';
   const frontendUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3050';
-  const sessionToken = process.env.PLAYWRIGHT_SESSION_TOKEN || '';
+  const signedToken = getSignedSessionCookie();
 
-  // Build the session cookie string that Better Auth expects
-  const sessionCookie = sessionToken
-    ? `better-auth.session_token=${sessionToken}`
+  // Build the session cookie string with signed value
+  const sessionCookie = signedToken
+    ? `better-auth.session_token=${signedToken}`
     : '';
 
   await page.route('**/*', async (route) => {
     const url = route.request().url();
 
     // Rewrite production backend URLs to localhost server.
-    // The browser's cookie jar has cookies for 127.0.0.1, NOT for mail-api.lair404.xyz,
-    // so the session cookie is missing from the original request. We must inject it.
     if (url.includes('mail-api.lair404.xyz')) {
       const localUrl = url.replace('https://mail-api.lair404.xyz', serverUrl);
       const existingCookie = route.request().headers()['cookie'] || '';
-      const cookie = existingCookie
-        ? `${existingCookie}; ${sessionCookie}`
-        : sessionCookie;
+      const cookie = sessionCookie
+        ? (existingCookie ? `${existingCookie}; ${sessionCookie}` : sessionCookie)
+        : existingCookie;
       await route.continue({
         url: localUrl,
         headers: {
@@ -44,15 +65,13 @@ export async function bypassCfAccess(page: Page): Promise<void> {
           'x-auth-verified': 'cf-access',
           'x-cf-user-email': userEmail,
           host: '127.0.0.1:3051',
-          cookie,
+          ...(cookie ? { cookie } : {}),
         },
       });
       return;
     }
 
-    // Rewrite production frontend URLs to localhost (e.g. /cf-access/callback redirects).
-    // Must use route.fetch() + route.fulfill() because route.continue() forbids protocol changes
-    // (https → http), which would otherwise throw "New URL must have same protocol as overridden URL".
+    // Rewrite production frontend URLs to localhost.
     if (url.includes('mail.lair404.xyz') && !url.includes('mail-api.lair404.xyz')) {
       const localUrl = url.replace('https://mail.lair404.xyz', frontendUrl);
       const response = await route.fetch({ url: localUrl });
