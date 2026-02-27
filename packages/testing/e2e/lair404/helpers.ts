@@ -52,13 +52,14 @@ export async function bypassCfAccess(page: Page): Promise<void> {
     const url = route.request().url();
 
     // Rewrite production backend URLs to localhost server.
+    // Must use fetch+fulfill (not continue) because protocol changes https→http.
     if (url.includes('mail-api.lair404.xyz')) {
       const localUrl = url.replace('https://mail-api.lair404.xyz', serverUrl);
       const existingCookie = route.request().headers()['cookie'] || '';
       const cookie = sessionCookie
         ? (existingCookie ? `${existingCookie}; ${sessionCookie}` : sessionCookie)
         : existingCookie;
-      await route.continue({
+      const response = await route.fetch({
         url: localUrl,
         headers: {
           ...route.request().headers(),
@@ -68,6 +69,7 @@ export async function bypassCfAccess(page: Page): Promise<void> {
           ...(cookie ? { cookie } : {}),
         },
       });
+      await route.fulfill({ response });
       return;
     }
 
@@ -99,6 +101,7 @@ export async function bypassCfAccess(page: Page): Promise<void> {
 
     // Rewrite production API/auth/tRPC calls under mail.lair404.xyz to localhost server.
     // NEXT_PUBLIC_BACKEND_URL=https://mail.lair404.xyz, so all API calls go to this domain.
+    // Must use fetch+fulfill (not continue) because protocol changes https→http.
     if (
       url.includes('mail.lair404.xyz') &&
       !url.includes('mail-api.lair404.xyz') &&
@@ -111,7 +114,7 @@ export async function bypassCfAccess(page: Page): Promise<void> {
       const cookie = sessionCookie
         ? (existingCookie ? `${existingCookie}; ${sessionCookie}` : sessionCookie)
         : existingCookie;
-      await route.continue({
+      const response = await route.fetch({
         url: localUrl,
         headers: {
           ...route.request().headers(),
@@ -121,6 +124,7 @@ export async function bypassCfAccess(page: Page): Promise<void> {
           ...(cookie ? { cookie } : {}),
         },
       });
+      await route.fulfill({ response });
       return;
     }
 

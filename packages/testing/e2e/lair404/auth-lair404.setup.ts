@@ -43,12 +43,13 @@ setup('inject lair404 authentication session', async ({ page }) => {
   await page.route('**/*', async (route) => {
     const url = route.request().url();
 
+    // Must use fetch+fulfill (not continue) because protocol changes https→http.
     if (url.includes('mail-api.lair404.xyz')) {
       const localUrl = url.replace('https://mail-api.lair404.xyz', serverUrl);
       const existingCookie = route.request().headers()['cookie'] || '';
       const sessionCookie = signedToken ? `__Secure-better-auth.session_token=${signedToken}` : '';
       const cookie = sessionCookie ? (existingCookie ? `${existingCookie}; ${sessionCookie}` : sessionCookie) : existingCookie;
-      await route.continue({
+      const response = await route.fetch({
         url: localUrl,
         headers: {
           ...route.request().headers(),
@@ -58,6 +59,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
           ...(cookie ? { cookie } : {}),
         },
       });
+      await route.fulfill({ response });
       return;
     }
 
@@ -86,6 +88,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
     }
 
     // Rewrite API/auth/tRPC calls under mail.lair404.xyz to localhost server.
+    // Must use fetch+fulfill (not continue) because protocol changes https→http.
     if (
       url.includes('mail.lair404.xyz') &&
       !url.includes('mail-api.lair404.xyz') &&
@@ -98,7 +101,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
       const cookieHeader = signedToken
         ? (existingCookie ? `${existingCookie}; __Secure-better-auth.session_token=${signedToken}` : `__Secure-better-auth.session_token=${signedToken}`)
         : existingCookie;
-      await route.continue({
+      const response = await route.fetch({
         url: localUrl,
         headers: {
           ...route.request().headers(),
@@ -108,6 +111,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
           ...(cookieHeader ? { cookie: cookieHeader } : {}),
         },
       });
+      await route.fulfill({ response });
       return;
     }
 
