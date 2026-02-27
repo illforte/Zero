@@ -7,7 +7,14 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
-    "test:e2e:headed": "playwright test --headed"
+    "test:e2e:headed": "playwright test --headed",
+    "test:lair404": "bash run-e2e-lair404.sh",
+    "test:lair404:health": "bash run-e2e-lair404.sh 1",
+    "test:lair404:mcp": "bash run-e2e-lair404.sh 2",
+    "test:lair404:litellm": "bash run-e2e-lair404.sh 3",
+    "test:lair404:langfuse": "bash run-e2e-lair404.sh 4",
+    "test:lair404:browser": "bash run-e2e-lair404.sh 5",
+    "test:lair404:api": "node --test api/health-endpoints.test.mjs && node --test api/mcp-email.test.mjs && node --test api/mcp-gws.test.mjs && node --test api/litellm-routing.test.mjs && node --test api/langfuse-traces.test.mjs"
   },
   "devDependencies": {
     "@cloudflare/playwright": "0.0.11",
