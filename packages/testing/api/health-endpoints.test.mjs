@@ -59,8 +59,8 @@ describe('Phase 1: Health Endpoints', () => {
     assert.equal(body.status, 'healthy', `GWS MCP health: ${body.status}`);
   });
 
-  it('5. LiteLLM /health — HTTP 200', async () => {
-    const res = await fetchWithTimeout(`${LITELLM_URL}/health`);
+  it('5. LiteLLM /health/readiness — HTTP 200', async () => {
+    const res = await fetchWithTimeout(`${LITELLM_URL}/health/readiness`);
     assert.equal(res.status, 200, `LiteLLM returned ${res.status}`);
   });
 

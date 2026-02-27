@@ -31,6 +31,39 @@ cp .env.lair404.example .env.lair404
 - `REDIS_TOKEN` - Generate secure token
 - `GROQ_API_KEY`, `OPENAI_API_KEY`, etc. - From Vault `secret/lair404/mail-zero`
 
+### 1b. Google Workspace MCP Setup
+
+The Google Workspace MCP server (port 5009) provides Calendar, Drive, Docs, Sheets, and more via streamable-http transport.
+
+**Generate a Google OAuth refresh token:**
+
+1. Use the same Google Cloud project as mail-zero (same `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`)
+2. Ensure the following APIs are enabled in Google Cloud Console:
+   - Gmail API, Google Calendar API, Google Drive API, Google Docs API
+   - Google Sheets API, Google Slides API, Google Tasks API, Google People API (Contacts)
+3. Add OAuth scopes: `https://www.googleapis.com/auth/gmail.modify`, `https://www.googleapis.com/auth/calendar`, `https://www.googleapis.com/auth/drive`, `https://www.googleapis.com/auth/documents`, `https://www.googleapis.com/auth/spreadsheets`, `https://www.googleapis.com/auth/presentations`, `https://www.googleapis.com/auth/tasks`, `https://www.googleapis.com/auth/contacts`
+4. Generate a refresh token using the OAuth playground or a local OAuth flow
+5. Set in `.env`:
+   ```bash
+   GOOGLE_REFRESH_TOKEN=<your-refresh-token>
+   GWS_MCP_API_KEY=$(openssl rand -hex 32)
+   ```
+
+**Environment variables (in `.env.lair404`):**
+
+| Variable | Description |
+|----------|-------------|
+| `GOOGLE_OAUTH_CLIENT_ID` | Reuses `GOOGLE_CLIENT_ID` from mail-zero |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Reuses `GOOGLE_CLIENT_SECRET` from mail-zero |
+| `GOOGLE_REFRESH_TOKEN` | OAuth refresh token for Google APIs |
+| `GWS_MCP_API_KEY` | API key for MCP authentication |
+
+**Port registration:**
+```bash
+ssh root@lair404.xyz
+docker exec port-registry node cli.js register 5009 google-workspace-mcp "Google Workspace MCP (Calendar, Drive, Docs)" mcp
+```
+
 ### 2. Build Docker Image
 
 ```bash

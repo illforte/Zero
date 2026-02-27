@@ -46,7 +46,7 @@ describe('Phase 4: Langfuse Trace Verification', () => {
   });
 
   it('1. Query recent traces — data returned', async () => {
-    const res = await fetchLangfuse('/api/public/traces?limit=10&orderBy=timestamp&order=DESC');
+    const res = await fetchLangfuse('/api/public/traces?limit=10');
     assert.equal(res.status, 200, `Traces endpoint returned ${res.status}`);
     const body = await res.json();
     assert.ok(body.data, 'Should have data array');

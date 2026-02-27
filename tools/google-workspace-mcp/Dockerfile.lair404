@@ -1,0 +1,44 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install system dependencies (curl for healthcheck)
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv for fast dependency management
+RUN pip install --no-cache-dir uv
+
+# Copy vendored source (no git clone at build time)
+COPY . .
+
+# Tell uv to use system python (python:3.12-slim has python3.12 pre-installed)
+# and never download a managed Python — avoids /root/.local permission issue
+ENV UV_PYTHON=/usr/local/bin/python3
+ENV UV_PYTHON_DOWNLOADS=never
+
+# Install dependencies as root using system python3 (no managed Python download)
+RUN uv sync --frozen --no-dev --python /usr/local/bin/python3
+
+# Create non-root user and hand over /app ownership AFTER venv is built
+RUN useradd --create-home --shell /bin/bash app \
+    && chown -R app:app /app
+
+# Credentials volume
+RUN mkdir -p /app/store_creds \
+    && chown -R app:app /app/store_creds \
+    && chmod 755 /app/store_creds
+
+USER app
+
+# Use streamable-http transport natively (no socat hack)
+ENV WORKSPACE_MCP_PORT=5009
+ENV PORT=5009
+EXPOSE 5009
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=20s \
+  CMD curl -f http://127.0.0.1:${PORT:-5009}/health || exit 1
+
+# Single-user mode with streamable-http transport
+CMD ["uv", "run", "main.py", "--transport", "streamable-http", "--single-user"]

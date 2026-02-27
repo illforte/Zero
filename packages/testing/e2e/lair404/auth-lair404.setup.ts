@@ -10,6 +10,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
 
   const SessionToken = process.env.PLAYWRIGHT_SESSION_TOKEN;
   const SessionData = process.env.PLAYWRIGHT_SESSION_DATA;
+  const userEmail = process.env.EMAIL || 'fscheugenpflug4@googlemail.com';
 
   if (!SessionToken || !SessionData) {
     throw new Error(
@@ -19,10 +20,30 @@ setup('inject lair404 authentication session', async ({ page }) => {
     );
   }
 
+  // Intercept all API requests and inject CF Access bypass headers.
+  // On lair404 production, frontdoor-auth adds these headers after JWT validation.
+  // For localhost testing, we simulate this bypass so the server accepts our session.
+  await page.route('**/*', async (route) => {
+    const request = route.request();
+    const url = request.url();
+
+    // Add CF Access headers to API/tRPC calls to the server
+    if (url.includes('/api/') || url.includes('/trpc/')) {
+      const headers = {
+        ...request.headers(),
+        'x-auth-verified': 'cf-access',
+        'x-cf-user-email': userEmail,
+      };
+      await route.continue({ headers });
+    } else {
+      await route.continue();
+    }
+  });
+
   await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 60_000 });
   console.log('Page loaded, setting up authentication...');
 
-  // On lair404, tests hit http://127.0.0.1:3050 — domain is 127.0.0.1, not .lair404.xyz
+  // On lair404, tests hit http://127.0.0.1:3050 — domain is 127.0.0.1
   await page.context().addCookies([
     {
       name: 'better-auth-dev.session_token',
@@ -43,7 +64,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
       sameSite: 'Lax',
     },
   ]);
-  console.log('Session cookies injected for 127.0.0.1');
+  console.log('Session cookies + CF Access headers injected');
 
   try {
     const decodedSessionData = JSON.parse(atob(SessionData));

@@ -23,6 +23,7 @@ mail-zero-fork/
 │   ├── eslint-config/   Shared ESLint
 │   └── tsconfig/        Shared TS configs
 ├── tools/
+│   ├── google-workspace-mcp/ Google Workspace MCP (Calendar, Drive, Docs, Sheets — port 5009)
 │   ├── imap-proxy/      IMAP/SMTP proxy (→ local Dovecot/Postfix via 127.0.0.1)
 │   ├── mail-server/     Backend server + AI WebSocket agent
 │   └── mcp-mail-server/ MCP server implementation (port 5008)
@@ -81,18 +82,29 @@ See `LAIR404-NOTES.md` for full implementation details.
 |------|---------|
 | 3050 | Frontend (Next.js) — both servers |
 | 5434 | PostgreSQL DB |
-| 5008 | MCP SSE server (`tools/mcp-mail-server/`) |
+| 5008 | MCP SSE server — email (`tools/mcp-mail-server/`) |
+| 5009 | MCP streamable-http server — Google Workspace (`tools/google-workspace-mcp/`) |
 
 ---
 
-## MCP Server (port 5008)
+## MCP Servers
+
+### Email MCP (port 5008)
 
 - **Transport:** SSE (`MCP_TRANSPORT=sse`) or stdio (local dev)
 - **Auth:** `Authorization: Bearer {MCP_API_KEY}` or `X-Api-Key` header
 - **User context:** `MAIL_ZERO_USER_EMAIL` env var
 - **Capabilities:** email search, read, reply, spam/delete/archive, send, unsubscribe, label management, AI summarization
 
-See `MCP.md` for complete tool list.
+### Google Workspace MCP (port 5009)
+
+- **Transport:** streamable-http (`--transport streamable-http`)
+- **Auth:** `MCP_API_KEY` (via `GWS_MCP_API_KEY` env var)
+- **Source:** vendored from `taylorwilsdon/google_workspace_mcp` in `tools/google-workspace-mcp/`
+- **Capabilities:** Gmail, Calendar, Drive, Docs, Sheets, Slides, Tasks, Contacts, Forms, Chat, Apps Script, Google Search
+- **Mode:** single-user (`--single-user` flag, credentials in Docker volume)
+
+See `MCP.md` for complete tool lists.
 
 ---
 

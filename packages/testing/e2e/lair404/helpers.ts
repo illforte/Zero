@@ -1,6 +1,30 @@
 import { type Page, expect } from '@playwright/test';
 
 /**
+ * Inject CF Access bypass headers on all API/tRPC requests.
+ * On lair404 production, frontdoor-auth adds these after JWT validation.
+ * For localhost tests, we simulate this so the server accepts our session.
+ * Must be called at the start of each test.
+ */
+export async function injectCfAccessHeaders(page: Page): Promise<void> {
+  const userEmail = process.env.EMAIL || 'fscheugenpflug4@googlemail.com';
+  await page.route('**/*', async (route) => {
+    const url = route.request().url();
+    if (url.includes('/api/') || url.includes('/trpc/')) {
+      await route.continue({
+        headers: {
+          ...route.request().headers(),
+          'x-auth-verified': 'cf-access',
+          'x-cf-user-email': userEmail,
+        },
+      });
+    } else {
+      await route.continue();
+    }
+  });
+}
+
+/**
  * Dismiss the "Welcome to Zero Email!" onboarding modal if it appears.
  */
 export async function dismissWelcomeModal(page: Page): Promise<void> {
@@ -21,6 +45,7 @@ export async function dismissWelcomeModal(page: Page): Promise<void> {
  * Navigate to inbox and wait for it to be ready (threads loaded).
  */
 export async function navigateToInbox(page: Page): Promise<void> {
+  await injectCfAccessHeaders(page);
   await page.goto('/mail/inbox');
   await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(2000);

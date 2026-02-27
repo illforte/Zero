@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { dismissWelcomeModal } from './helpers';
+import { dismissWelcomeModal, injectCfAccessHeaders } from './helpers';
 
 /**
  * All known @lair404.xyz connections + Gmail.
@@ -22,6 +22,7 @@ test.describe('lair404: Inbox — All Connections', () => {
   test.setTimeout(120_000);
 
   test('Settings shows all expected connections', async ({ page }) => {
+    await injectCfAccessHeaders(page);
     await page.goto('/settings/connections');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(3000);
@@ -39,6 +40,7 @@ test.describe('lair404: Inbox — All Connections', () => {
   });
 
   test('Switch and verify inbox loads for each connection', async ({ page }) => {
+    await injectCfAccessHeaders(page);
     await page.goto('/mail/inbox');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(3000);

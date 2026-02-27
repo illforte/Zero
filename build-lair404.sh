@@ -43,8 +43,19 @@ docker buildx build \
   --push \
   tools/mail-server
 
+# Build Google Workspace MCP
+echo "📦 Building google-workspace-mcp image..."
+docker buildx build \
+  --platform linux/amd64 \
+  --file tools/google-workspace-mcp/Dockerfile.lair404 \
+  --tag ghcr.io/lair404xyz/google-workspace-mcp:latest \
+  --tag "ghcr.io/lair404xyz/google-workspace-mcp:${TIMESTAMP}" \
+  --push \
+  tools/google-workspace-mcp
+
 echo ""
 echo "✅ All builds complete!"
 echo "   ghcr.io/lair404xyz/mail-zero:latest"
 echo "   ghcr.io/lair404xyz/mail-zero-imap-proxy:latest"
 echo "   ghcr.io/lair404xyz/mail-zero-server-node:latest"
+echo "   ghcr.io/lair404xyz/google-workspace-mcp:latest"
