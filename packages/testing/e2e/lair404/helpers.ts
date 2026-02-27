@@ -18,13 +18,25 @@ export async function bypassCfAccess(page: Page): Promise<void> {
   const userEmail = process.env.EMAIL || 'fscheugenpflug4@googlemail.com';
   const serverUrl = process.env.SERVER_URL || 'http://127.0.0.1:3051';
   const frontendUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3050';
+  const sessionToken = process.env.PLAYWRIGHT_SESSION_TOKEN || '';
+
+  // Build the session cookie string that Better Auth expects
+  const sessionCookie = sessionToken
+    ? `better-auth-dev.session_token=${sessionToken}`
+    : '';
 
   await page.route('**/*', async (route) => {
     const url = route.request().url();
 
-    // Rewrite production backend URLs to localhost server
+    // Rewrite production backend URLs to localhost server.
+    // The browser's cookie jar has cookies for 127.0.0.1, NOT for mail-api.lair404.xyz,
+    // so the session cookie is missing from the original request. We must inject it.
     if (url.includes('mail-api.lair404.xyz')) {
       const localUrl = url.replace('https://mail-api.lair404.xyz', serverUrl);
+      const existingCookie = route.request().headers()['cookie'] || '';
+      const cookie = existingCookie
+        ? `${existingCookie}; ${sessionCookie}`
+        : sessionCookie;
       await route.continue({
         url: localUrl,
         headers: {
@@ -32,15 +44,19 @@ export async function bypassCfAccess(page: Page): Promise<void> {
           'x-auth-verified': 'cf-access',
           'x-cf-user-email': userEmail,
           host: '127.0.0.1:3051',
+          cookie,
         },
       });
       return;
     }
 
-    // Rewrite production frontend URLs to localhost (e.g. /cf-access/callback redirects)
+    // Rewrite production frontend URLs to localhost (e.g. /cf-access/callback redirects).
+    // Must use route.fetch() + route.fulfill() because route.continue() forbids protocol changes
+    // (https → http), which would otherwise throw "New URL must have same protocol as overridden URL".
     if (url.includes('mail.lair404.xyz') && !url.includes('mail-api.lair404.xyz')) {
       const localUrl = url.replace('https://mail.lair404.xyz', frontendUrl);
-      await route.continue({ url: localUrl });
+      const response = await route.fetch({ url: localUrl });
+      await route.fulfill({ response });
       return;
     }
 

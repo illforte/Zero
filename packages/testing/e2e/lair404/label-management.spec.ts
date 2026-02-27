@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { navigateToInbox, dismissWelcomeModal, waitForThreads } from './helpers';
+import { navigateToInbox, waitForThreads } from './helpers';
 
 test.describe('lair404: Label Management', () => {
   test('Filter via command palette — Starred Emails', async ({ page }) => {

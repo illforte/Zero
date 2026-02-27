@@ -28,6 +28,13 @@ setup('inject lair404 authentication session', async ({ page }) => {
 
     if (url.includes('mail-api.lair404.xyz')) {
       const localUrl = url.replace('https://mail-api.lair404.xyz', serverUrl);
+      const sessionCookie = SessionToken
+        ? `better-auth-dev.session_token=${SessionToken}`
+        : '';
+      const existingCookie = route.request().headers()['cookie'] || '';
+      const cookie = existingCookie
+        ? `${existingCookie}; ${sessionCookie}`
+        : sessionCookie;
       await route.continue({
         url: localUrl,
         headers: {
@@ -35,6 +42,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
           'x-auth-verified': 'cf-access',
           'x-cf-user-email': userEmail,
           host: '127.0.0.1:3051',
+          cookie,
         },
       });
       return;
@@ -42,7 +50,10 @@ setup('inject lair404 authentication session', async ({ page }) => {
 
     if (url.includes('mail.lair404.xyz') && !url.includes('mail-api.lair404.xyz')) {
       const localUrl = url.replace('https://mail.lair404.xyz', frontendUrl);
-      await route.continue({ url: localUrl });
+      // Must use route.fetch() + route.fulfill() because route.continue() forbids protocol changes
+      // (https → http), which would otherwise throw "New URL must have same protocol as overridden URL".
+      const response = await route.fetch({ url: localUrl });
+      await route.fulfill({ response });
       return;
     }
 

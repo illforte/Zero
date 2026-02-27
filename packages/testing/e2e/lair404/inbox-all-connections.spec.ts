@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { dismissWelcomeModal, bypassCfAccess } from './helpers';
+import { dismissWelcomeModal, bypassCfAccess, navigateToInbox } from './helpers';
 
 /**
  * All known @lair404.xyz connections + Gmail.
@@ -40,12 +40,7 @@ test.describe('lair404: Inbox — All Connections', () => {
   });
 
   test('Switch and verify inbox loads for each connection', async ({ page }) => {
-    await bypassCfAccess(page);
-    await page.goto('/mail/inbox');
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(3000);
-    await dismissWelcomeModal(page);
-    await expect(page.getByText('Inbox')).toBeVisible();
+    await navigateToInbox(page);
 
     let successCount = 0;
     let failCount = 0;
