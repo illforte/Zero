@@ -1,5 +1,10 @@
 import { type Page, expect } from '@playwright/test';
 import { createHmac } from 'crypto';
+import { readFileSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Sign a cookie value to match better-call's serializeSignedCookie format.
@@ -43,38 +48,39 @@ export async function bypassCfAccess(page: Page): Promise<void> {
   const frontendUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3050';
   const signedToken = getSignedSessionCookie();
 
+  // Load pre-built session data — from env var, or from file saved by setup step
+  let sessionData: Record<string, unknown> | null = null;
+  if (process.env.PLAYWRIGHT_SESSION_DATA) {
+    try { sessionData = JSON.parse(process.env.PLAYWRIGHT_SESSION_DATA); } catch { /* ignore */ }
+  }
+  if (!sessionData) {
+    try {
+      const sessionFile = path.join(__dirname, '../../playwright/.auth/session-data.json');
+      sessionData = JSON.parse(readFileSync(sessionFile, 'utf-8'));
+    } catch { /* file doesn't exist yet — that's fine */ }
+  }
+
   // Build the session cookie string with signed value
   const sessionCookie = signedToken
-    ? `__Secure-better-auth.session_token=${signedToken}`
+    ? `better-auth.session_token=${signedToken}`
     : '';
 
   await page.route('**/*', async (route) => {
     const url = route.request().url();
 
-    // Rewrite production backend URLs to localhost server.
-    // Must use fetch+fulfill (not continue) because protocol changes https→http.
-    if (url.includes('mail-api.lair404.xyz')) {
-      const localUrl = url.replace('https://mail-api.lair404.xyz', serverUrl);
-      const existingCookie = route.request().headers()['cookie'] || '';
-      const cookie = sessionCookie
-        ? (existingCookie ? `${existingCookie}; ${sessionCookie}` : sessionCookie)
-        : existingCookie;
-      const response = await route.fetch({
-        url: localUrl,
-        headers: {
-          ...route.request().headers(),
-          'x-auth-verified': 'cf-access',
-          'x-cf-user-email': userEmail,
-          host: '127.0.0.1:3051',
-          ...(cookie ? { cookie } : {}),
-        },
+    // 1. Mock get-session with pre-built data — most reliable auth approach.
+    //    Avoids cookie signing, CORS, and protocol mismatch issues entirely.
+    if (url.includes('/api/auth/get-session') && sessionData) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(sessionData),
       });
-      await route.fulfill({ response });
       return;
     }
 
-    // Mock nginx endpoints that the server doesn't serve (billing bypass, providers stub)
-    if (url.includes('mail.lair404.xyz') && url.includes('/api/autumn/')) {
+    // 2. Mock billing (Autumn) — server doesn't serve this, nginx does
+    if (url.includes('/api/autumn/')) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -94,21 +100,22 @@ export async function bypassCfAccess(page: Page): Promise<void> {
       return;
     }
 
-    if (url.includes('mail.lair404.xyz') && url.includes('/api/public/providers')) {
+    // 3. Mock providers stub
+    if (url.includes('/api/public/providers')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
       return;
     }
 
-    // Rewrite production API/auth/tRPC calls under mail.lair404.xyz to localhost server.
-    // NEXT_PUBLIC_BACKEND_URL=https://mail.lair404.xyz, so all API calls go to this domain.
-    // Must use fetch+fulfill (not continue) because protocol changes https→http.
+    // 4. Rewrite production API/tRPC calls (mail.lair404.xyz or mail-api.lair404.xyz) to localhost.
+    //    Uses fetch+fulfill because route.continue() forbids protocol change (https→http).
     if (
-      url.includes('mail.lair404.xyz') &&
-      !url.includes('mail-api.lair404.xyz') &&
+      (url.includes('mail-api.lair404.xyz') || url.includes('mail.lair404.xyz')) &&
       (url.includes('/api/') || url.includes('/trpc/'))
     ) {
-      // Replicate nginx rewrite: /api/trpc/X → /trpc/X (nginx strips /api prefix for tRPC)
-      const rawLocalUrl = url.replace('https://mail.lair404.xyz', serverUrl);
+      const rawLocalUrl = url
+        .replace('https://mail-api.lair404.xyz', serverUrl)
+        .replace('https://mail.lair404.xyz', serverUrl);
+      // Replicate nginx rewrite: /api/trpc/X → /trpc/X
       const localUrl = rawLocalUrl.replace('/api/trpc/', '/trpc/');
       const existingCookie = route.request().headers()['cookie'] || '';
       const cookie = sessionCookie
@@ -128,7 +135,7 @@ export async function bypassCfAccess(page: Page): Promise<void> {
       return;
     }
 
-    // Rewrite production frontend URLs to localhost.
+    // 5. Rewrite production frontend URLs to localhost (non-API pages).
     if (url.includes('mail.lair404.xyz') && !url.includes('mail-api.lair404.xyz')) {
       const localUrl = url.replace('https://mail.lair404.xyz', frontendUrl);
       const response = await route.fetch({ url: localUrl });
@@ -136,7 +143,7 @@ export async function bypassCfAccess(page: Page): Promise<void> {
       return;
     }
 
-    // Add CF Access bypass headers to any localhost API/tRPC calls
+    // 6. Add CF Access bypass headers to any localhost API/tRPC calls
     if (url.includes('/api/') || url.includes('/trpc/')) {
       await route.continue({
         headers: {

@@ -9,13 +9,11 @@ const authFile = path.join(__dirname, '../../playwright/.auth/user-lair404.json'
 /**
  * Sign a cookie value to match better-call's serializeSignedCookie format.
  * Format: encodeURIComponent(`${value}.${standardBase64_hmac_sha256(value, secret)}`)
- *
- * Critical: better-call's guard checks signature.length === 44 && signature.endsWith("=")
  */
 function signCookieValue(value: string, secret: string): string {
   const sig = createHmac('sha256', secret)
     .update(value)
-    .digest('base64'); // standard base64 WITH padding
+    .digest('base64');
   return encodeURIComponent(`${value}.${sig}`);
 }
 
@@ -39,32 +37,60 @@ setup('inject lair404 authentication session', async ({ page }) => {
   const signedToken = rawToken && authSecret ? signCookieValue(rawToken, authSecret) : rawToken || '';
   console.log(`Token signed: ${!!authSecret}, length: ${signedToken.length}`);
 
-  // Rewrite production URLs to localhost and inject session cookie
+  // Step 1: Fetch session data from backend via Node.js fetch (bypasses CORS)
+  let sessionData: Record<string, unknown> | null = null;
+
+  if (process.env.PLAYWRIGHT_SESSION_DATA) {
+    try {
+      sessionData = JSON.parse(process.env.PLAYWRIGHT_SESSION_DATA);
+      console.log('Using pre-set PLAYWRIGHT_SESSION_DATA');
+    } catch { /* ignore */ }
+  }
+
+  if (!sessionData && signedToken) {
+    try {
+      const sessionUrl = `${serverUrl}/api/auth/get-session`;
+      console.log(`Fetching session from: ${sessionUrl}`);
+      const res = await fetch(sessionUrl, {
+        headers: {
+          cookie: `better-auth.session_token=${signedToken}`,
+          'x-auth-verified': 'cf-access',
+          'x-cf-user-email': userEmail,
+        },
+      });
+      console.log(`Session API response: ${res.status}`);
+      if (res.ok) {
+        const data = await res.json() as Record<string, unknown>;
+        if (data && (data.session || data.user)) {
+          sessionData = data;
+          // Set env so test workers can use it
+          process.env.PLAYWRIGHT_SESSION_DATA = JSON.stringify(data);
+          console.log('Session data fetched:', JSON.stringify(data).substring(0, 300));
+        }
+      } else {
+        console.log('WARNING: get-session returned', res.status);
+      }
+    } catch (error) {
+      console.log('Could not fetch session data:', error);
+    }
+  }
+
+  // Step 2: Register route handlers — mock get-session + rewrite production URLs
   await page.route('**/*', async (route) => {
     const url = route.request().url();
 
-    // Must use fetch+fulfill (not continue) because protocol changes https→http.
-    if (url.includes('mail-api.lair404.xyz')) {
-      const localUrl = url.replace('https://mail-api.lair404.xyz', serverUrl);
-      const existingCookie = route.request().headers()['cookie'] || '';
-      const sessionCookie = signedToken ? `__Secure-better-auth.session_token=${signedToken}` : '';
-      const cookie = sessionCookie ? (existingCookie ? `${existingCookie}; ${sessionCookie}` : sessionCookie) : existingCookie;
-      const response = await route.fetch({
-        url: localUrl,
-        headers: {
-          ...route.request().headers(),
-          'x-auth-verified': 'cf-access',
-          'x-cf-user-email': userEmail,
-          host: '127.0.0.1:3051',
-          ...(cookie ? { cookie } : {}),
-        },
+    // Mock get-session with pre-fetched data — guarantees auth works
+    if (url.includes('/api/auth/get-session') && sessionData) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(sessionData),
       });
-      await route.fulfill({ response });
       return;
     }
 
-    // Mock nginx endpoints that the server doesn't serve
-    if (url.includes('mail.lair404.xyz') && url.includes('/api/autumn/')) {
+    // Mock billing (Autumn)
+    if (url.includes('/api/autumn/')) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -82,24 +108,25 @@ setup('inject lair404 authentication session', async ({ page }) => {
       return;
     }
 
-    if (url.includes('mail.lair404.xyz') && url.includes('/api/public/providers')) {
+    // Mock providers stub
+    if (url.includes('/api/public/providers')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
       return;
     }
 
-    // Rewrite API/auth/tRPC calls under mail.lair404.xyz to localhost server.
-    // Must use fetch+fulfill (not continue) because protocol changes https→http.
+    // Rewrite production API/tRPC calls to localhost (fetch+fulfill for https→http)
     if (
-      url.includes('mail.lair404.xyz') &&
-      !url.includes('mail-api.lair404.xyz') &&
+      (url.includes('mail-api.lair404.xyz') || url.includes('mail.lair404.xyz')) &&
       (url.includes('/api/') || url.includes('/trpc/'))
     ) {
-      // Replicate nginx rewrite: /api/trpc/X → /trpc/X
-      const rawLocalUrl = url.replace('https://mail.lair404.xyz', serverUrl);
+      const rawLocalUrl = url
+        .replace('https://mail-api.lair404.xyz', serverUrl)
+        .replace('https://mail.lair404.xyz', serverUrl);
       const localUrl = rawLocalUrl.replace('/api/trpc/', '/trpc/');
+      const sessionCookie = signedToken ? `better-auth.session_token=${signedToken}` : '';
       const existingCookie = route.request().headers()['cookie'] || '';
-      const cookieHeader = signedToken
-        ? (existingCookie ? `${existingCookie}; __Secure-better-auth.session_token=${signedToken}` : `__Secure-better-auth.session_token=${signedToken}`)
+      const cookie = sessionCookie
+        ? (existingCookie ? `${existingCookie}; ${sessionCookie}` : sessionCookie)
         : existingCookie;
       const response = await route.fetch({
         url: localUrl,
@@ -108,13 +135,14 @@ setup('inject lair404 authentication session', async ({ page }) => {
           'x-auth-verified': 'cf-access',
           'x-cf-user-email': userEmail,
           host: '127.0.0.1:3051',
-          ...(cookieHeader ? { cookie: cookieHeader } : {}),
+          ...(cookie ? { cookie } : {}),
         },
       });
       await route.fulfill({ response });
       return;
     }
 
+    // Rewrite production frontend pages to localhost
     if (url.includes('mail.lair404.xyz') && !url.includes('mail-api.lair404.xyz')) {
       const localUrl = url.replace('https://mail.lair404.xyz', frontendUrl);
       const response = await route.fetch({ url: localUrl });
@@ -122,6 +150,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
       return;
     }
 
+    // CF Access bypass for localhost API calls
     if (url.includes('/api/') || url.includes('/trpc/')) {
       await route.continue({
         headers: {
@@ -136,7 +165,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
     await route.continue();
   });
 
-  // Set signed session cookie for 127.0.0.1
+  // Step 3: Set session cookie for 127.0.0.1
   if (signedToken) {
     await page.context().addCookies([
       {
@@ -150,55 +179,25 @@ setup('inject lair404 authentication session', async ({ page }) => {
       },
     ]);
     console.log('Signed session cookie injected');
-  } else {
-    console.log('No session token to inject');
   }
 
-  // Navigate and let the app load
+  // Step 4: Navigate and inject localStorage
   await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 60_000 });
   console.log('Page loaded');
 
-  // Fetch real session data from the backend using the signed cookie
-  if (signedToken) {
-    try {
-      const sessionUrl = `${serverUrl}/api/auth/get-session`;
-      console.log(`Fetching session from: ${sessionUrl}`);
-      const res = await fetch(sessionUrl, {
-        headers: {
-          cookie: `__Secure-better-auth.session_token=${signedToken}`,
-          'x-auth-verified': 'cf-access',
-          'x-cf-user-email': userEmail,
-        },
-      });
-      console.log(`Session API response: ${res.status}`);
-
-      if (res.ok) {
-        const sessionData = await res.json();
-        console.log('Session data:', JSON.stringify(sessionData).substring(0, 300));
-
-        if (sessionData && (sessionData.session || sessionData.user)) {
-          await page.evaluate((data) => {
-            if (data.session) {
-              localStorage.setItem('better-auth.session', JSON.stringify(data.session));
-            }
-            if (data.user) {
-              localStorage.setItem('better-auth.user', JSON.stringify(data.user));
-            }
-          }, sessionData);
-          console.log('Session data injected into localStorage');
-        } else {
-          console.log('WARNING: Session API returned unexpected shape:', Object.keys(sessionData));
-        }
-      } else {
-        const text = await res.text();
-        console.log('WARNING: Session API returned', res.status, text.substring(0, 200));
+  if (sessionData) {
+    await page.evaluate((data) => {
+      if (data.session) {
+        localStorage.setItem('better-auth.session', JSON.stringify(data.session));
       }
-    } catch (error) {
-      console.log('Could not fetch session data:', error);
-    }
+      if (data.user) {
+        localStorage.setItem('better-auth.user', JSON.stringify(data.user));
+      }
+    }, sessionData as { session?: unknown; user?: unknown });
+    console.log('Session data injected into localStorage');
   }
 
-  // Reload to pick up localStorage changes
+  // Step 5: Navigate to inbox to verify auth
   await page.goto('/mail/inbox');
   await page.waitForLoadState('domcontentloaded');
 
@@ -210,6 +209,15 @@ setup('inject lair404 authentication session', async ({ page }) => {
     await page.screenshot({ path: 'debug-auth-lair404-failed.png' });
   }
 
+  // Step 6: Save storage state (cookies + localStorage) for test workers
   await page.context().storageState({ path: authFile });
   console.log('lair404 authentication session saved!');
+
+  // Write session data to a temp file so test workers can load it
+  if (sessionData) {
+    const fs = await import('fs');
+    const sessionFile = path.join(__dirname, '../../playwright/.auth/session-data.json');
+    fs.writeFileSync(sessionFile, JSON.stringify(sessionData));
+    console.log('Session data saved to', sessionFile);
+  }
 });
