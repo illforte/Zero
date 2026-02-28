@@ -1,10 +1,5 @@
 import { type Page, expect } from '@playwright/test';
 import { createHmac } from 'crypto';
-import { readFileSync } from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Sign a cookie value to match better-call's serializeSignedCookie format.
@@ -28,6 +23,53 @@ function getSignedSessionCookie(): string {
   return rawToken && authSecret ? signCookieValue(rawToken, authSecret) : rawToken;
 }
 
+/** Module-level cache so we only fetch once per worker process. */
+let _sessionDataCache: Record<string, unknown> | null = null;
+let _sessionDataFetched = false;
+
+/**
+ * Fetch session data from the backend using Node.js fetch (bypasses CORS).
+ * Cached per worker process so subsequent calls are instant.
+ */
+async function getSessionData(): Promise<Record<string, unknown> | null> {
+  if (_sessionDataFetched) return _sessionDataCache;
+  _sessionDataFetched = true;
+
+  // Try env var first (set by setup step)
+  if (process.env.PLAYWRIGHT_SESSION_DATA) {
+    try {
+      _sessionDataCache = JSON.parse(process.env.PLAYWRIGHT_SESSION_DATA) as Record<string, unknown>;
+      return _sessionDataCache;
+    } catch { /* ignore */ }
+  }
+
+  // Fetch directly from the server using Node.js fetch (bypasses CORS)
+  const signedToken = getSignedSessionCookie();
+  const serverUrl = process.env.SERVER_URL || 'http://127.0.0.1:3051';
+  const userEmail = process.env.EMAIL || 'fscheugenpflug4@googlemail.com';
+
+  if (!signedToken) return null;
+
+  try {
+    const res = await fetch(`${serverUrl}/api/auth/get-session`, {
+      headers: {
+        cookie: `better-auth.session_token=${signedToken}`,
+        'x-auth-verified': 'cf-access',
+        'x-cf-user-email': userEmail,
+      },
+    });
+    if (res.ok) {
+      const data = await res.json() as Record<string, unknown>;
+      if (data && (data.session || data.user)) {
+        _sessionDataCache = data;
+        return data;
+      }
+    }
+  } catch { /* server unreachable */ }
+
+  return null;
+}
+
 /**
  * Bypass Cloudflare Access for localhost testing.
  *
@@ -48,17 +90,8 @@ export async function bypassCfAccess(page: Page): Promise<void> {
   const frontendUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3050';
   const signedToken = getSignedSessionCookie();
 
-  // Load pre-built session data — from env var, or from file saved by setup step
-  let sessionData: Record<string, unknown> | null = null;
-  if (process.env.PLAYWRIGHT_SESSION_DATA) {
-    try { sessionData = JSON.parse(process.env.PLAYWRIGHT_SESSION_DATA); } catch { /* ignore */ }
-  }
-  if (!sessionData) {
-    try {
-      const sessionFile = path.join(__dirname, '../../playwright/.auth/session-data.json');
-      sessionData = JSON.parse(readFileSync(sessionFile, 'utf-8'));
-    } catch { /* file doesn't exist yet — that's fine */ }
-  }
+  // Fetch session data from server (cached per worker process)
+  const sessionData = await getSessionData();
 
   // Build the session cookie string with signed value
   const sessionCookie = signedToken
