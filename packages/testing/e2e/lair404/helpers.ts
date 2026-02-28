@@ -48,24 +48,41 @@ async function getSessionData(): Promise<Record<string, unknown> | null> {
   const serverUrl = process.env.SERVER_URL || 'http://127.0.0.1:3051';
   const userEmail = process.env.EMAIL || 'fscheugenpflug4@googlemail.com';
 
-  if (!signedToken) return null;
+  if (!signedToken) {
+    console.log('[getSessionData] No signed token available');
+    return null;
+  }
 
   try {
-    const res = await fetch(`${serverUrl}/api/auth/get-session`, {
+    const url = `${serverUrl}/api/auth/get-session`;
+    console.log(`[getSessionData] Fetching ${url} with cookie length=${signedToken.length}`);
+    // In production (NODE_ENV=production + BETTER_AUTH_URL=https://...), better-auth
+    // sets the __Secure- prefix on all cookies. Use that prefix for the server-side fetch.
+    const res = await fetch(url, {
       headers: {
-        cookie: `better-auth.session_token=${signedToken}`,
+        cookie: `__Secure-better-auth.session_token=${signedToken}`,
         'x-auth-verified': 'cf-access',
         'x-cf-user-email': userEmail,
       },
     });
+    console.log(`[getSessionData] Response: ${res.status} ${res.statusText}`);
     if (res.ok) {
-      const data = await res.json() as Record<string, unknown>;
-      if (data && (data.session || data.user)) {
-        _sessionDataCache = data;
-        return data;
+      const text = await res.text();
+      console.log(`[getSessionData] Body (first 200): ${text.substring(0, 200)}`);
+      if (text && text !== 'null') {
+        const data = JSON.parse(text) as Record<string, unknown>;
+        if (data && (data.session || data.user)) {
+          _sessionDataCache = data;
+          return data;
+        }
+        console.log(`[getSessionData] Data has no session/user. Keys: ${Object.keys(data)}`);
+      } else {
+        console.log('[getSessionData] Body is null or empty');
       }
     }
-  } catch { /* server unreachable */ }
+  } catch (err) {
+    console.log(`[getSessionData] Fetch error: ${err}`);
+  }
 
   return null;
 }
@@ -94,9 +111,11 @@ export async function bypassCfAccess(page: Page): Promise<void> {
   const sessionData = await getSessionData();
   console.log(`[bypassCfAccess] sessionData=${sessionData ? 'loaded' : 'null'}, signedToken=${signedToken ? 'present' : 'missing'}, BETTER_AUTH_SECRET=${process.env.BETTER_AUTH_SECRET ? 'set' : 'NOT SET'}`);
 
-  // Build the session cookie string with signed value
+  // Build the session cookie string with signed value.
+  // In production (NODE_ENV=production + BETTER_AUTH_URL=https://...), better-auth
+  // uses the __Secure- cookie prefix. This must match for session validation to succeed.
   const sessionCookie = signedToken
-    ? `better-auth.session_token=${signedToken}`
+    ? `__Secure-better-auth.session_token=${signedToken}`
     : '';
 
   await page.route('**/*', async (route) => {
@@ -245,11 +264,34 @@ export async function navigateToInbox(page: Page): Promise<void> {
 }
 
 /**
- * Open the AI chat sidebar using keyboard shortcut.
+ * Open the AI chat sidebar.
+ * Uses URL parameter approach (most reliable in headless), falling back to
+ * keyboard shortcut and then button click.
  */
 export async function openAISidebar(page: Page): Promise<void> {
+  const aiForm = page.locator('form#ai-chat-form');
+
+  // Already open?
+  if (await aiForm.isVisible({ timeout: 1_000 }).catch(() => false)) return;
+
+  // Method 1: Append ?aiSidebar=true to URL (the app reads this query param)
+  const currentUrl = new URL(page.url());
+  currentUrl.searchParams.set('aiSidebar', 'true');
+  await page.goto(currentUrl.toString(), { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2000);
+  if (await aiForm.isVisible({ timeout: 3_000 }).catch(() => false)) return;
+
+  // Method 2: Keyboard shortcut (Meta+0 on Mac, may not work on Linux headless)
   await page.keyboard.press('Meta+0');
-  await expect(page.locator('form#ai-chat-form')).toBeVisible({ timeout: 10_000 });
+  if (await aiForm.isVisible({ timeout: 3_000 }).catch(() => false)) return;
+
+  // Method 3: Click the AI toggle button in the bottom-right corner
+  const toggleBtn = page.getByRole('button', { name: /toggle ai|ai assistant/i });
+  if (await toggleBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await toggleBtn.click();
+  }
+
+  await expect(aiForm).toBeVisible({ timeout: 10_000 });
 }
 
 /**
