@@ -118,26 +118,43 @@ export async function bypassCfAccess(page: Page): Promise<void> {
     ? `__Secure-better-auth.session_token=${signedToken}`
     : '';
 
+  // CORS headers to inject on proxied responses — the browser page is at
+  // http://127.0.0.1:3050 but the original request targets https://mail.lair404.xyz,
+  // so the server's CORS headers don't include localhost as an allowed origin.
+  const corsHeaders = {
+    'access-control-allow-origin': frontendUrl,
+    'access-control-allow-credentials': 'true',
+    'access-control-allow-methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+    'access-control-allow-headers': 'Content-Type, Authorization, x-trpc-source, cookie',
+    'access-control-max-age': '86400',
+  };
+
   await page.route('**/*', async (route) => {
     const url = route.request().url();
+    const method = route.request().method();
+    const isProduction = url.includes('mail-api.lair404.xyz') || url.includes('mail.lair404.xyz');
+
+    // 0. Handle CORS preflight (OPTIONS) for production URLs — respond immediately
+    if (method === 'OPTIONS' && isProduction) {
+      await route.fulfill({ status: 204, headers: corsHeaders });
+      return;
+    }
 
     // 1. Mock get-session with pre-built data — most reliable auth approach.
-    //    Avoids cookie signing, CORS, and protocol mismatch issues entirely.
     if (url.includes('/api/auth/get-session') && sessionData) {
-      console.log(`[MOCK] get-session intercepted: ${url}`);
       await route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        headers: { ...corsHeaders, 'content-type': 'application/json' },
         body: JSON.stringify(sessionData),
       });
       return;
     }
 
-    // 2. Mock billing (Autumn) — server doesn't serve this, nginx does
+    // 2. Mock billing (Autumn) — self-hosted, no billing service
     if (url.includes('/api/autumn/')) {
       await route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        headers: { ...corsHeaders, 'content-type': 'application/json' },
         body: JSON.stringify({
           customerId: 'self-hosted',
           plan: 'pro_annual',
@@ -156,22 +173,20 @@ export async function bypassCfAccess(page: Page): Promise<void> {
 
     // 3. Mock providers stub
     if (url.includes('/api/public/providers')) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+      await route.fulfill({
+        status: 200,
+        headers: { ...corsHeaders, 'content-type': 'application/json' },
+        body: '[]',
+      });
       return;
     }
 
-    // 4. Rewrite production API/tRPC calls (mail.lair404.xyz or mail-api.lair404.xyz) to localhost.
-    //    Uses fetch+fulfill because route.continue() forbids protocol change (https→http).
-    if (
-      (url.includes('mail-api.lair404.xyz') || url.includes('mail.lair404.xyz')) &&
-      (url.includes('/api/') || url.includes('/trpc/'))
-    ) {
+    // 4. Rewrite production API/tRPC calls to localhost with CORS fix.
+    if (isProduction && (url.includes('/api/') || url.includes('/trpc/'))) {
       const rawLocalUrl = url
         .replace('https://mail-api.lair404.xyz', serverUrl)
         .replace('https://mail.lair404.xyz', serverUrl);
-      // Replicate nginx rewrite: /api/trpc/X → /trpc/X
       const localUrl = rawLocalUrl.replace('/api/trpc/', '/trpc/');
-      console.log(`[REWRITE] ${url.substring(0, 80)} → ${localUrl.substring(0, 80)}`);
       const existingCookie = route.request().headers()['cookie'] || '';
       const cookie = sessionCookie
         ? (existingCookie ? `${existingCookie}; ${sessionCookie}` : sessionCookie)
@@ -186,14 +201,19 @@ export async function bypassCfAccess(page: Page): Promise<void> {
           ...(cookie ? { cookie } : {}),
         },
       });
-      await route.fulfill({ response });
+      // Override CORS headers so browser accepts the cross-origin response
+      const respHeaders = { ...response.headers(), ...corsHeaders };
+      await route.fulfill({
+        status: response.status(),
+        headers: respHeaders,
+        body: await response.body(),
+      });
       return;
     }
 
-    // 5. Rewrite production frontend URLs to localhost (non-API pages).
+    // 5. Rewrite production frontend URLs to localhost.
     if (url.includes('mail.lair404.xyz') && !url.includes('mail-api.lair404.xyz')) {
       const localUrl = url.replace('https://mail.lair404.xyz', frontendUrl);
-      console.log(`[FRONTEND] ${url.substring(0, 80)} → ${localUrl.substring(0, 80)}`);
       const response = await route.fetch({ url: localUrl });
       await route.fulfill({ response });
       return;

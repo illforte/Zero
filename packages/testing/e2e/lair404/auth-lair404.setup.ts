@@ -51,9 +51,11 @@ setup('inject lair404 authentication session', async ({ page }) => {
     try {
       const sessionUrl = `${serverUrl}/api/auth/get-session`;
       console.log(`Fetching session from: ${sessionUrl}`);
+      // In production (NODE_ENV=production + BETTER_AUTH_URL=https://...), better-auth
+      // uses the __Secure- cookie prefix. Must match for session validation to succeed.
       const res = await fetch(sessionUrl, {
         headers: {
-          cookie: `better-auth.session_token=${signedToken}`,
+          cookie: `__Secure-better-auth.session_token=${signedToken}`,
           'x-auth-verified': 'cf-access',
           'x-cf-user-email': userEmail,
         },
@@ -75,15 +77,32 @@ setup('inject lair404 authentication session', async ({ page }) => {
     }
   }
 
+  // CORS headers — page is http://127.0.0.1:3050 but requests target https://mail.lair404.xyz
+  const corsHeaders = {
+    'access-control-allow-origin': frontendUrl,
+    'access-control-allow-credentials': 'true',
+    'access-control-allow-methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+    'access-control-allow-headers': 'Content-Type, Authorization, x-trpc-source, cookie',
+    'access-control-max-age': '86400',
+  };
+
   // Step 2: Register route handlers — mock get-session + rewrite production URLs
   await page.route('**/*', async (route) => {
     const url = route.request().url();
+    const method = route.request().method();
+    const isProduction = url.includes('mail-api.lair404.xyz') || url.includes('mail.lair404.xyz');
 
-    // Mock get-session with pre-fetched data — guarantees auth works
+    // Handle CORS preflight for production URLs
+    if (method === 'OPTIONS' && isProduction) {
+      await route.fulfill({ status: 204, headers: corsHeaders });
+      return;
+    }
+
+    // Mock get-session with pre-fetched data
     if (url.includes('/api/auth/get-session') && sessionData) {
       await route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        headers: { ...corsHeaders, 'content-type': 'application/json' },
         body: JSON.stringify(sessionData),
       });
       return;
@@ -93,7 +112,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
     if (url.includes('/api/autumn/')) {
       await route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        headers: { ...corsHeaders, 'content-type': 'application/json' },
         body: JSON.stringify({
           customerId: 'self-hosted', plan: 'pro_annual',
           features: {
@@ -110,20 +129,21 @@ setup('inject lair404 authentication session', async ({ page }) => {
 
     // Mock providers stub
     if (url.includes('/api/public/providers')) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+      await route.fulfill({
+        status: 200,
+        headers: { ...corsHeaders, 'content-type': 'application/json' },
+        body: '[]',
+      });
       return;
     }
 
-    // Rewrite production API/tRPC calls to localhost (fetch+fulfill for https→http)
-    if (
-      (url.includes('mail-api.lair404.xyz') || url.includes('mail.lair404.xyz')) &&
-      (url.includes('/api/') || url.includes('/trpc/'))
-    ) {
+    // Rewrite production API/tRPC calls to localhost with CORS headers
+    if (isProduction && (url.includes('/api/') || url.includes('/trpc/'))) {
       const rawLocalUrl = url
         .replace('https://mail-api.lair404.xyz', serverUrl)
         .replace('https://mail.lair404.xyz', serverUrl);
       const localUrl = rawLocalUrl.replace('/api/trpc/', '/trpc/');
-      const sessionCookie = signedToken ? `better-auth.session_token=${signedToken}` : '';
+      const sessionCookie = signedToken ? `__Secure-better-auth.session_token=${signedToken}` : '';
       const existingCookie = route.request().headers()['cookie'] || '';
       const cookie = sessionCookie
         ? (existingCookie ? `${existingCookie}; ${sessionCookie}` : sessionCookie)
@@ -138,7 +158,12 @@ setup('inject lair404 authentication session', async ({ page }) => {
           ...(cookie ? { cookie } : {}),
         },
       });
-      await route.fulfill({ response });
+      const respHeaders = { ...response.headers(), ...corsHeaders };
+      await route.fulfill({
+        status: response.status(),
+        headers: respHeaders,
+        body: await response.body(),
+      });
       return;
     }
 
