@@ -92,6 +92,7 @@ export async function bypassCfAccess(page: Page): Promise<void> {
 
   // Fetch session data from server (cached per worker process)
   const sessionData = await getSessionData();
+  console.log(`[bypassCfAccess] sessionData=${sessionData ? 'loaded' : 'null'}, signedToken=${signedToken ? 'present' : 'missing'}, BETTER_AUTH_SECRET=${process.env.BETTER_AUTH_SECRET ? 'set' : 'NOT SET'}`);
 
   // Build the session cookie string with signed value
   const sessionCookie = signedToken
@@ -104,6 +105,7 @@ export async function bypassCfAccess(page: Page): Promise<void> {
     // 1. Mock get-session with pre-built data — most reliable auth approach.
     //    Avoids cookie signing, CORS, and protocol mismatch issues entirely.
     if (url.includes('/api/auth/get-session') && sessionData) {
+      console.log(`[MOCK] get-session intercepted: ${url}`);
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -150,6 +152,7 @@ export async function bypassCfAccess(page: Page): Promise<void> {
         .replace('https://mail.lair404.xyz', serverUrl);
       // Replicate nginx rewrite: /api/trpc/X → /trpc/X
       const localUrl = rawLocalUrl.replace('/api/trpc/', '/trpc/');
+      console.log(`[REWRITE] ${url.substring(0, 80)} → ${localUrl.substring(0, 80)}`);
       const existingCookie = route.request().headers()['cookie'] || '';
       const cookie = sessionCookie
         ? (existingCookie ? `${existingCookie}; ${sessionCookie}` : sessionCookie)
@@ -171,6 +174,7 @@ export async function bypassCfAccess(page: Page): Promise<void> {
     // 5. Rewrite production frontend URLs to localhost (non-API pages).
     if (url.includes('mail.lair404.xyz') && !url.includes('mail-api.lair404.xyz')) {
       const localUrl = url.replace('https://mail.lair404.xyz', frontendUrl);
+      console.log(`[FRONTEND] ${url.substring(0, 80)} → ${localUrl.substring(0, 80)}`);
       const response = await route.fetch({ url: localUrl });
       await route.fulfill({ response });
       return;
