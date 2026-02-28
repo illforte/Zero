@@ -9,6 +9,13 @@ import {
   BanknoteIcon,
   RefreshCcw,
   Trash2,
+  Cloud,
+  FileText,
+  Calendar,
+  Mail,
+  Table,
+  Presentation,
+  ExternalLink,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -16,6 +23,9 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useActiveConnection, useConnections } from '@/hooks/use-connections';
@@ -301,6 +311,77 @@ export function NavUser() {
                     </DropdownMenuItem>
                   </>
                 </div>
+
+                {activeAccount?.providerId === 'google' && (
+                  <>
+                    <DropdownMenuSeparator className="mt-1" />
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="cursor-pointer py-1.5">
+                        <div className="flex items-center gap-2">
+                          <Cloud size={16} className="opacity-60" />
+                          <p className="text-[13px] opacity-60">Google Workspace</p>
+                        </div>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="w-48 bg-white dark:bg-[#131313] shadow-lg rounded-md border p-1">
+                        <DropdownMenuItem asChild className="cursor-pointer">
+                          <a href="https://mail.google.com" target="_blank" rel="noreferrer" className="flex items-center justify-between w-full">
+                            <div className="flex items-center gap-2">
+                              <Mail size={14} className="opacity-60" />
+                              <span className="text-[13px] opacity-80">Gmail</span>
+                            </div>
+                            <ExternalLink size={12} className="opacity-40" />
+                          </a>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild className="cursor-pointer">
+                          <a href="https://drive.google.com" target="_blank" rel="noreferrer" className="flex items-center justify-between w-full">
+                            <div className="flex items-center gap-2">
+                              <Cloud size={14} className="opacity-60" />
+                              <span className="text-[13px] opacity-80">Drive</span>
+                            </div>
+                            <ExternalLink size={12} className="opacity-40" />
+                          </a>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild className="cursor-pointer">
+                          <a href="https://calendar.google.com" target="_blank" rel="noreferrer" className="flex items-center justify-between w-full">
+                            <div className="flex items-center gap-2">
+                              <Calendar size={14} className="opacity-60" />
+                              <span className="text-[13px] opacity-80">Calendar</span>
+                            </div>
+                            <ExternalLink size={12} className="opacity-40" />
+                          </a>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild className="cursor-pointer">
+                          <a href="https://docs.google.com/document" target="_blank" rel="noreferrer" className="flex items-center justify-between w-full">
+                            <div className="flex items-center gap-2">
+                              <FileText size={14} className="opacity-60" />
+                              <span className="text-[13px] opacity-80">Docs</span>
+                            </div>
+                            <ExternalLink size={12} className="opacity-40" />
+                          </a>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild className="cursor-pointer">
+                          <a href="https://docs.google.com/spreadsheets" target="_blank" rel="noreferrer" className="flex items-center justify-between w-full">
+                            <div className="flex items-center gap-2">
+                              <Table size={14} className="opacity-60" />
+                              <span className="text-[13px] opacity-80">Sheets</span>
+                            </div>
+                            <ExternalLink size={12} className="opacity-40" />
+                          </a>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild className="cursor-pointer">
+                          <a href="https://docs.google.com/presentation" target="_blank" rel="noreferrer" className="flex items-center justify-between w-full">
+                            <div className="flex items-center gap-2">
+                              <Presentation size={14} className="opacity-60" />
+                              <span className="text-[13px] opacity-80">Slides</span>
+                            </div>
+                            <ExternalLink size={12} className="opacity-40" />
+                          </a>
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  </>
+                )}
+
                 <>
                   <DropdownMenuSeparator className="mt-1" />
                   <p className="text-muted-foreground px-2 py-1 text-[11px] font-medium">Debug</p>
