@@ -42,3 +42,59 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: git push --force-with-lease origin main
+
+      - name: Notify Slack
+        if: always()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK" ]; then
+            echo "::warning::SLACK_DEPLOY_WEBHOOK_URL is not configured"
+            exit 0
+          fi
+          
+          STATUS="${{ job.status }}"
+          if [ "$STATUS" = "success" ]; then
+            ICON="✅"
+            COLOR="#36a64f"
+          else
+            ICON="❌"
+            COLOR="#ff0000"
+          fi
+          
+          COMMIT_MSG=$(git log -1 --pretty=format:"%s" || echo "No commit message")
+          COMMIT_AUTHOR=$(git log -1 --pretty=format:"%an" || echo "Unknown")
+          COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          WORKFLOW_NAME="${{ github.workflow }}"
+          
+          # Simple Slack payload
+          curl -s -X POST "$SLACK_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"blocks\": [
+                  {
+                    \"type\": \"section\",
+                    \"text\": {
+                      \"type\": \"mrkdwn\",
+                      \"text\": \"$ICON *${WORKFLOW_NAME} ${STATUS}*\n*Repo:* ${{ github.repository }}\n*Commit:* <$COMMIT_URL|${{ github.sha }}> by $COMMIT_AUTHOR\n*Message:* $COMMIT_MSG\"
+                    }
+                  },
+                  {
+                    \"type\": \"actions\",
+                    \"elements\": [
+                      {
+                        \"type\": \"button\",
+                        \"text\": {
+                          \"type\": \"plain_text\",
+                          \"text\": \"View Run\"
+                        },
+                        \"url\": \"$RUN_URL\"
+                      }
+                    ]
+                  }
+                ]
+              }]
+            }"
