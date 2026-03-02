@@ -319,3 +319,12 @@ All images built with `docker buildx build --platform linux/amd64` (lair404 is A
   Harmless, no impact on functionality.
 - **n1njanode self-signed cert**: `rejectUnauthorized: false` is already set in
   imap-proxy — self-signed cert silently accepted for IMAP/SMTP.
+
+
+---
+
+### 11. Google Workspace MCP Integration & UI Polishing
+
+Added conditional rendering in the `NavUser` dropdown component (`apps/mail/components/ui/nav-user.tsx`) to display direct links to Google Workspace services (Gmail, Drive, Calendar, Docs, Sheets, Slides) exclusively when a Google Account is active.
+
+This enhances the user experience by bringing all Google productivity tools into a unified dropdown. Testing via E2E confirmed the Google Workspace MCP connects properly, searches files, reads calendar events, and operates successfully alongside the LiteLLM proxy which acts as the core router.

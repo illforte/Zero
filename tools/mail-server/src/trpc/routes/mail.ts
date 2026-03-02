@@ -325,4 +325,15 @@ export const mailRouter = router({
         });
       }
     }),
+
+  verifyEmail: activeDriverProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async () => {
+      return { isVerified: false, reason: 'Not supported in Node.js backend' };
+    }),
+
+  forceSync: activeDriverProcedure
+    .mutation(async () => {
+      return { success: true };
+    }),
 });
