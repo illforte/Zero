@@ -4,7 +4,8 @@ services:
   mail-zero:
     image: ghcr.io/lair404xyz/mail-zero:latest
     container_name: mail-zero
-    restart: unless-stopped
+    restart: always
+    init: true
     env_file: .env
     environment:
       NODE_ENV: production
@@ -29,7 +30,8 @@ services:
   mail-zero-server:
     image: ghcr.io/lair404xyz/mail-zero-server-node:latest
     container_name: mail-zero-server
-    restart: unless-stopped
+    restart: always
+    init: true
     env_file: .env
     network_mode: host
     environment:
@@ -66,7 +68,8 @@ services:
   mail-zero-imap-proxy:
     image: ghcr.io/lair404xyz/mail-zero-imap-proxy:latest
     container_name: mail-zero-imap-proxy
-    restart: unless-stopped
+    restart: always
+    init: true
     env_file: .env
     network_mode: host
     environment:
@@ -84,7 +87,8 @@ services:
   mail-zero-mcp:
     image: ghcr.io/lair404xyz/mail-zero-server-node:latest
     container_name: mail-zero-mcp
-    restart: unless-stopped
+    restart: always
+    init: true
     env_file: .env
     network_mode: host
     environment:
@@ -109,7 +113,8 @@ services:
   mail-zero-db:
     image: postgres:17-alpine
     container_name: mail-zero-db
-    restart: unless-stopped
+    restart: always
+    init: true
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-mailzero}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
@@ -132,7 +137,8 @@ services:
   mail-zero-valkey:
     image: docker.io/bitnami/valkey:latest
     container_name: mail-zero-valkey
-    restart: unless-stopped
+    restart: always
+    init: true
     environment:
       - ALLOW_EMPTY_PASSWORD=yes
       - VALKEY_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
@@ -151,7 +157,8 @@ services:
   mail-zero-upstash-proxy:
     image: hiett/serverless-redis-http:latest
     container_name: mail-zero-upstash-proxy
-    restart: unless-stopped
+    restart: always
+    init: true
     environment:
       SRH_MODE: env
       SRH_TOKEN: ${REDIS_TOKEN:?required}

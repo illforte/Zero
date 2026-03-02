@@ -50,10 +50,12 @@ services:
         condition: service_healthy
     command: ['pnpm', 'run', 'db:migrate']
     restart: 'no'
+    init: true
 
   db:
     image: postgres:17-alpine
-    restart: unless-stopped
+    restart: always
+    init: true
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}

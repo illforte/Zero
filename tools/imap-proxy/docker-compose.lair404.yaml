@@ -4,7 +4,8 @@ services:
   imap-proxy:
     image: imap-proxy:latest
     container_name: imap-proxy
-    restart: unless-stopped
+    restart: always
+    init: true
     ports:
       - "127.0.0.1:3060:3060"
     environment:
