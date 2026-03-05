@@ -14,6 +14,7 @@ import { userRouter } from './routes/user';
 import { meetRouter } from './routes/meet';
 import { mailRouter } from './routes/mail';
 import { bimiRouter } from './routes/bimi';
+import { workspaceRouter } from './routes/workspace';
 import type { HonoContext } from '../ctx';
 import { aiRouter } from './routes/ai';
 import { router } from './trpc';
@@ -36,6 +37,7 @@ export const appRouter = router({
   templates: templatesRouter,
   meet: meetRouter,
   logging: loggingRouter,
+  workspace: workspaceRouter,
 });
 
 export type AppRouter = typeof appRouter;

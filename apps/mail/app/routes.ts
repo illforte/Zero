@@ -30,6 +30,8 @@ export default [
         route('/create', '(routes)/mail/create/page.tsx'),
         route('/compose', '(routes)/mail/compose/page.tsx'),
         route('/under-construction/:path', '(routes)/mail/under-construction/[path]/page.tsx'),
+        route('/drive', '(routes)/mail/drive/page.tsx'),
+        route('/calendar', '(routes)/mail/calendar/page.tsx'),
         route('/:folder', '(routes)/mail/[folder]/page.tsx'),
       ]),
     ),
