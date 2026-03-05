@@ -49,11 +49,12 @@ export const meta: MetaFunction = () => {
     { property: 'og:image', content: siteConfig.openGraph.images[0].url },
     { property: 'og:url', content: siteConfig.alternates.canonical },
     { property: 'og:type', content: 'website' },
-    { rel: 'manifest', href: '/manifest.webmanifest' },
+    { rel: 'manifest', href: '/manifest.webmanifest', crossOrigin: 'use-credentials' },
   ];
 };
 
 export function Layout({ children }: PropsWithChildren) {
+  // Force cache invalidation: 2026-03-05
   return (
     <html lang={getLocale()} suppressHydrationWarning>
       <head>
@@ -61,7 +62,7 @@ export function Layout({ children }: PropsWithChildren) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)" />
         <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-        <link rel="manifest" href="/manifest.json" />
+        <link rel="manifest" href="/manifest.json" crossOrigin="use-credentials" />
         <Meta />
         {import.meta.env.REACT_SCAN && (
           <script crossOrigin="anonymous" src="//unpkg.com/react-scan/dist/auto.global.js" />
