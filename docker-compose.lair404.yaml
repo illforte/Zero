@@ -122,8 +122,8 @@ services:
     env_file: .env
     network_mode: host
     environment:
-      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:?required}
-      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:?required}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_CLIENT_ID:?required}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?required}
       GOOGLE_REFRESH_TOKEN: ${GOOGLE_REFRESH_TOKEN}
       WORKSPACE_MCP_PORT: "5009"
       GOOGLE_OAUTH_REDIRECT_URI: "https://mail.lair404.xyz/oauth2callback"
