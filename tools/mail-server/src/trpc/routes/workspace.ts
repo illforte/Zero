@@ -34,7 +34,8 @@ export const workspaceRouter = router({
         return [{ id: '1', name: content, type: 'MCP Document', modifiedAt: new Date().toISOString() }];
       } catch (err) {
         console.error("MCP Drive fetch error:", err);
-        return [{ id: 'error', name: 'Failed to connect to Google Workspace MCP. It may not be running on this server.', type: 'Error', modifiedAt: new Date().toISOString() }];
+        const errMsg = err instanceof Error ? err.message : String(err);
+        return [{ id: 'error', name: errMsg, type: 'Auth Required', modifiedAt: new Date().toISOString() }];
       }
     }),
 
@@ -59,7 +60,8 @@ export const workspaceRouter = router({
         return [{ id: '1', summary: content, start: new Date().toISOString(), end: new Date().toISOString() }];
       } catch (err) {
         console.error("MCP Calendar fetch error:", err);
-        return [{ id: 'error', summary: 'Failed to connect to Google Workspace MCP. It may not be running on this server.', start: new Date().toISOString(), end: new Date().toISOString() }];
+        const errMsg = err instanceof Error ? err.message : String(err);
+        return [{ id: 'error', summary: errMsg, start: new Date().toISOString(), end: new Date().toISOString() }];
       }
     }),
 });
