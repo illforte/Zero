@@ -91,15 +91,11 @@ class LocalDirectoryCredentialStore(CredentialStore):
 
             if workspace_creds_dir:
                 base_dir = os.path.expanduser(workspace_creds_dir)
-                logger.info(
-                    f"Using credentials directory from WORKSPACE_MCP_CREDENTIALS_DIR: {base_dir}"
-                )
+                logger.debug(f"Using credentials directory...")
             # Fall back to GOOGLE_MCP_CREDENTIALS_DIR for backward compatibility
             elif google_creds_dir:
                 base_dir = os.path.expanduser(google_creds_dir)
-                logger.info(
-                    f"Using credentials directory from GOOGLE_MCP_CREDENTIALS_DIR: {base_dir}"
-                )
+                logger.debug(f"Using credentials directory...")
             else:
                 home_dir = os.path.expanduser("~")
                 if home_dir and home_dir != "~":

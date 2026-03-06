@@ -132,6 +132,8 @@ class MinimalOAuthServer:
             )
 
     def start(self) -> tuple[bool, str]:
+        if self.port == 0:
+            return True, "Skipped OAuth server since port is 0"
         """
         Start the minimal OAuth server.
 

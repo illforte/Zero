@@ -318,8 +318,8 @@ export function NavUser() {
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger className="cursor-pointer py-1.5">
                         <div className="flex items-center gap-2">
-                          <Cloud size={16} className="opacity-60" />
-                          <p className="text-[13px] opacity-60">Google Workspace</p>
+                          <Cloud size={16} className="text-orange-500 dark:text-orange-400" />
+                          <p className="text-[13px] font-medium text-orange-500 dark:text-orange-400">Google Workspace</p>
                         </div>
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent className="w-48 bg-white dark:bg-[#131313] shadow-lg rounded-md border p-1">

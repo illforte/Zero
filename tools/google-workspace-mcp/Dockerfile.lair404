@@ -19,7 +19,7 @@ ENV UV_PYTHON=/usr/local/bin/python3
 ENV UV_PYTHON_DOWNLOADS=never
 
 # Install dependencies as root using system python3 (no managed Python download)
-RUN uv sync --frozen --no-dev --python /usr/local/bin/python3
+RUN uv sync --no-dev --python /usr/local/bin/python3
 
 # Create non-root user and hand over /app ownership AFTER venv is built
 RUN useradd --create-home --shell /bin/bash app \

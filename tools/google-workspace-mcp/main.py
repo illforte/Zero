@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 # Check for CLI mode early - before loading oauth_config
 # CLI mode requires OAuth 2.0 since there's no MCP session context
 _CLI_MODE = "--cli" in sys.argv
-if _CLI_MODE:
+if _CLI_MODE or "--transport" in sys.argv and "stdio" in sys.argv:
     os.environ["MCP_ENABLE_OAUTH21"] = "false"
     os.environ["WORKSPACE_MCP_STATELESS_MODE"] = "false"
 
@@ -103,6 +103,7 @@ def main():
         logging.getLogger().setLevel(logging.ERROR)
         logging.getLogger("auth").setLevel(logging.ERROR)
         logging.getLogger("core").setLevel(logging.ERROR)
+        logging.getLogger("fastmcp").setLevel(logging.ERROR)
 
     # Configure safe logging for Windows Unicode handling
     configure_safe_logging()
