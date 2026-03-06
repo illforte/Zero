@@ -126,6 +126,8 @@ services:
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:?required}
       GOOGLE_REFRESH_TOKEN: ${GOOGLE_REFRESH_TOKEN}
       WORKSPACE_MCP_PORT: "5009"
+      GOOGLE_OAUTH_REDIRECT_URI: "https://mail.lair404.xyz/oauth2callback"
+      WORKSPACE_MCP_BASE_URI: "https://mail.lair404.xyz"
       PORT: "5009"
       MCP_SINGLE_USER_MODE: "1"
       MCP_API_KEY: ${GWS_MCP_API_KEY}
