@@ -1,18 +1,18 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
-import { protectedProcedure, router } from '../trpc';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { privateProcedure, router } from '../trpc.js';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 async function getMcpClient(userEmail?: string) {
-  const transport = new SSEClientTransport(new URL("http://127.0.0.1:5009/sse"));
+  const transport = new StreamableHTTPClientTransport(new URL("http://127.0.0.1:5009/mcp"));
   const client = new Client({ name: "mail-zero-workspace", version: "1.0.0" }, { capabilities: {} });
   await client.connect(transport);
   return { client, transport };
 }
 
 export const workspaceRouter = router({
-  getDriveFiles: protectedProcedure
+  getDriveFiles: privateProcedure
     .input(z.object({ query: z.string().optional() }))
     .query(async ({ ctx, input }) => {
       try {
@@ -28,7 +28,8 @@ export const workspaceRouter = router({
           }
         });
         
-        const content = response.content?.[0]?.type === 'text' ? response.content[0].text : 'No data';
+        const contentArray = response.content as Array<{ type: string; text: string }>;
+        const content = contentArray?.[0]?.type === 'text' ? contentArray[0].text : 'No data';
         
         return [{ id: '1', name: content, type: 'MCP Document', modifiedAt: new Date().toISOString() }];
       } catch (err) {
@@ -37,7 +38,7 @@ export const workspaceRouter = router({
       }
     }),
 
-  getCalendarEvents: protectedProcedure
+  getCalendarEvents: privateProcedure
     .input(z.object({ timeMin: z.string().optional(), timeMax: z.string().optional() }))
     .query(async ({ ctx, input }) => {
       try {
@@ -52,7 +53,8 @@ export const workspaceRouter = router({
           }
         });
         
-        const content = response.content?.[0]?.type === 'text' ? response.content[0].text : 'No data';
+        const contentArray = response.content as Array<{ type: string; text: string }>;
+        const content = contentArray?.[0]?.type === 'text' ? contentArray[0].text : 'No data';
         
         return [{ id: '1', summary: content, start: new Date().toISOString(), end: new Date().toISOString() }];
       } catch (err) {

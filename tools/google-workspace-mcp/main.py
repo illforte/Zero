@@ -10,8 +10,20 @@ from dotenv import load_dotenv
 # CLI mode requires OAuth 2.0 since there's no MCP session context
 _CLI_MODE = "--cli" in sys.argv
 if _CLI_MODE or "--transport" in sys.argv and "stdio" in sys.argv:
-    os.environ["MCP_ENABLE_OAUTH21"] = "false"
-    os.environ["WORKSPACE_MCP_STATELESS_MODE"] = "false"
+    # Patch FastMCP to suppress banner
+    # Add FASTMCP_NO_BANNER=1 and deep patch
+    os.environ["FASTMCP_NO_BANNER"] = "1"
+    os.environ["FASTMCP_LOG_LEVEL"] = "CRITICAL"
+    try:
+        import fastmcp.server
+        if hasattr(fastmcp.server.FastMCP, "_print_banner"):
+            fastmcp.server.FastMCP._print_banner = lambda *args, **kwargs: None
+        import fastmcp.cli
+        if hasattr(fastmcp.cli, "show_banner"):
+            fastmcp.cli.show_banner = lambda *args, **kwargs: None
+    except ImportError:
+        pass
+
 
 from auth.oauth_config import reload_oauth_config, is_stateless_mode  # noqa: E402
 from core.log_formatter import EnhancedLogFormatter, configure_file_logging  # noqa: E402
@@ -46,8 +58,7 @@ configure_file_logging()
 
 
 def safe_print(text):
-    # Don't print in CLI mode - we want clean output
-    if _CLI_MODE:
+    if _CLI_MODE or "--transport" in sys.argv and "stdio" in sys.argv:
         return
 
     # Don't print to stderr when running as MCP server via uvx to avoid JSON parsing errors

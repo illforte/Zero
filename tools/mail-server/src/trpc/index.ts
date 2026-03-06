@@ -8,6 +8,7 @@ import { brainRouter } from './routes/brain.js';
 import { userRouter } from './routes/user.js';
 import { mailRouter } from './routes/mail.js';
 import { bimiRouter } from './routes/bimi.js';
+import { workspaceRouter } from './routes/workspace.js';
 import { router } from './trpc.js';
 
 export const appRouter = router({
@@ -20,6 +21,7 @@ export const appRouter = router({
   settings: settingsRouter,
   templates: templatesRouter,
   user: userRouter,
+  workspace: workspaceRouter,
 });
 
 export type AppRouter = typeof appRouter;
