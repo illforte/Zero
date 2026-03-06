@@ -1,6 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { privateProcedure, router } from '../trpc.js';
+import { activeConnectionProcedure, router } from '../trpc.js';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
@@ -12,12 +12,12 @@ async function getMcpClient(userEmail?: string) {
 }
 
 export const workspaceRouter = router({
-  getDriveFiles: privateProcedure
+  getDriveFiles: activeConnectionProcedure
     .input(z.object({ query: z.string().optional() }))
     .query(async ({ ctx, input }) => {
       try {
         const { client } = await getMcpClient();
-        const userEmail = ctx.sessionUser.email;
+        const userEmail = ctx.activeConnection.email;
         
         const response = await client.callTool({
           name: 'search_drive_files',
@@ -38,12 +38,12 @@ export const workspaceRouter = router({
       }
     }),
 
-  getCalendarEvents: privateProcedure
+  getCalendarEvents: activeConnectionProcedure
     .input(z.object({ timeMin: z.string().optional(), timeMax: z.string().optional() }))
     .query(async ({ ctx, input }) => {
       try {
         const { client } = await getMcpClient();
-        const userEmail = ctx.sessionUser.email;
+        const userEmail = ctx.activeConnection.email;
         
         const response = await client.callTool({
           name: 'get_events',
