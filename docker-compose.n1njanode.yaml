@@ -9,7 +9,11 @@ services:
     env_file: .env
     environment:
       NODE_ENV: production
-    command: ["/bin/sh", "-c", "/app/scripts/replace-placeholder.sh 'http://REPLACE-BACKEND-URL.com' '' && /app/scripts/replace-placeholder.sh 'http://REPLACE-APP-URL.com' 'https://mail.n1njanode.com' && cd /app/apps/mail/build/client && exec npx --yes serve -s -l 3000"]
+      VITE_PUBLIC_BACKEND_URL: https://mail.n1njanode.com
+      VITE_PUBLIC_APP_URL: https://mail.n1njanode.com
+      NEXT_PUBLIC_BACKEND_URL: https://mail.n1njanode.com
+      NEXT_PUBLIC_APP_URL: https://mail.n1njanode.com
+    command: ["/bin/sh", "-c", "/app/scripts/replace-placeholder.sh 'http://REPLACE-BACKEND-URL.com' 'https://mail.n1njanode.com' && /app/scripts/replace-placeholder.sh 'http://REPLACE-APP-URL.com' 'https://mail.n1njanode.com' && cd /app/apps/mail/build/client && exec npx --yes serve -s -l 3000"]
     depends_on:
       mail-zero-server:
         condition: service_started
@@ -110,6 +114,37 @@ services:
       - "com.n1njanode.service=mail-zero-mcp"
       - "com.n1njanode.port=5008"
 
+  google-workspace-mcp:
+    image: ghcr.io/lair404xyz/google-workspace-mcp:latest
+    container_name: google-workspace-mcp
+    restart: always
+    init: true
+    env_file: .env
+    network_mode: host
+    environment:
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_CLIENT_ID:?required}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?required}
+      GOOGLE_REFRESH_TOKEN: ${GOOGLE_REFRESH_TOKEN}
+      WORKSPACE_MCP_PORT: "5009"
+      GOOGLE_OAUTH_REDIRECT_URI: "https://mail.n1njanode.com/oauth2callback"
+      WORKSPACE_MCP_BASE_URI: "https://mail.n1njanode.com"
+      PORT: "5009"
+      MCP_SINGLE_USER_MODE: "1"
+      MCP_API_KEY: ${GWS_MCP_API_KEY}
+      USER_GOOGLE_EMAIL: ${MAIL_ZERO_USER_EMAIL}
+      WORKSPACE_MCP_CREDENTIALS_DIR: /app/store_creds
+    volumes:
+      - google-workspace-mcp-creds:/app/store_creds
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://127.0.0.1:5009/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "com.n1njanode.service=google-workspace-mcp"
+      - "com.n1njanode.port=5009"
+
   mail-zero-db:
     image: postgres:17-alpine
     container_name: mail-zero-db
@@ -182,3 +217,5 @@ volumes:
     name: mail-zero-postgres
   mail-zero-valkey:
     name: mail-zero-valkey
+  google-workspace-mcp-creds:
+    name: google-workspace-mcp-creds

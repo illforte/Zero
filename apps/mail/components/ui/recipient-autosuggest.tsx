@@ -94,7 +94,9 @@ export function RecipientAutosuggest({
   const [debouncedQuery, setDebouncedQuery] = useState('');
 
   const trpc = useTRPC();
-  const { data: allSuggestions = [], isLoading } = useQuery({
+  
+  // Existing local mail agent search
+  const { data: localSuggestions = [], isLoading: localLoading } = useQuery({
     ...trpc.mail.suggestRecipients.queryOptions({
       query: debouncedQuery,
       limit: 10,
@@ -102,12 +104,37 @@ export function RecipientAutosuggest({
     enabled: debouncedQuery.trim().length > 0 && !isComposing,
   });
 
+  // Google Contacts search via MCP
+  const { data: contactsSuggestions = [], isLoading: contactsLoading } = useQuery({
+    ...trpc.workspace.searchContacts.queryOptions({
+      query: debouncedQuery,
+    }),
+    enabled: debouncedQuery.trim().length > 0 && !isComposing,
+  });
+
+  const isLoading = localLoading || contactsLoading;
+
   const filteredSuggestions = useMemo(() => {
-    const validatedSuggestions = validateSuggestions(allSuggestions);
-    return validatedSuggestions.filter((suggestion) => 
+    // Map MCP contacts to the RecipientSuggestion format
+    const formattedContacts = (contactsSuggestions || []).map(contact => ({
+      email: contact.email,
+      name: contact.name,
+      displayText: contact.name ? `${contact.name} (${contact.email})` : contact.email
+    }));
+
+    // Merge local and contacts, removing exact email duplicates
+    const allMerged = [...formattedContacts, ...validateSuggestions(localSuggestions)];
+    const uniqueMap = new Map();
+    for (const s of allMerged) {
+      if (s.email && !uniqueMap.has(s.email.toLowerCase())) {
+        uniqueMap.set(s.email.toLowerCase(), s);
+      }
+    }
+    
+    return Array.from(uniqueMap.values()).filter((suggestion) => 
       !recipients.includes(suggestion.email)
     );
-  }, [allSuggestions, recipients]);
+  }, [localSuggestions, contactsSuggestions, recipients]);
 
   const isValidEmail = useCallback((email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

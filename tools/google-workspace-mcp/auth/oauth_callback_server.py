@@ -245,10 +245,10 @@ def ensure_oauth_callback_available(
     """
     global _minimal_oauth_server
 
-    if transport_mode == "streamable-http":
-        # In streamable-http mode, the main FastAPI server should handle callbacks
+    if transport_mode in ["streamable-http", "sse"]:
+        # In streamable-http/sse mode, the main FastAPI server should handle callbacks
         logger.debug(
-            "Using existing FastAPI server for OAuth callbacks (streamable-http mode)"
+            f"Using existing FastAPI server for OAuth callbacks ({transport_mode} mode)"
         )
         return True, ""
 

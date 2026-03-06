@@ -468,7 +468,9 @@ export function NavUser() {
                   onClick={handleAccountSwitch(activeAccount.id)}
                   className={`flex cursor-pointer items-center ${
                     activeAccount.id === activeConnection?.id && data.connections.length > 1
-                      ? 'outline-mainBlue rounded-[5px] outline outline-2'
+                      ? activeAccount.providerId === 'google'
+                        ? 'outline-orange-500 rounded-[5px] outline outline-2'
+                        : 'outline-mainBlue rounded-[5px] outline outline-2'
                       : ''
                   }`}
                 >
@@ -489,7 +491,7 @@ export function NavUser() {
                       </AvatarFallback>
                     </Avatar>
                     {activeAccount.id === activeConnection?.id && data.connections.length > 1 && (
-                      <CircleCheck className="fill-mainBlue absolute -bottom-2 -right-2 size-4 rounded-full bg-white dark:bg-[#141414]" />
+                      <CircleCheck className={cn("absolute -bottom-2 -right-2 size-4 rounded-full bg-white dark:bg-[#141414]", activeAccount.providerId === 'google' ? "fill-orange-500" : "fill-mainBlue")} />
                     )}
                   </div>
                 </div>
@@ -507,7 +509,9 @@ export function NavUser() {
                       onClick={handleAccountSwitch(connection.id)}
                       className={`flex cursor-pointer items-center ${
                         connection.id === activeConnection?.id && otherConnections.length > 1
-                          ? 'outline-mainBlue rounded-[5px] outline outline-2'
+                          ? connection.providerId === 'google'
+                            ? 'outline-orange-500 rounded-[5px] outline outline-2'
+                            : 'outline-mainBlue rounded-[5px] outline outline-2'
                           : ''
                       }`}
                     >
@@ -528,7 +532,7 @@ export function NavUser() {
                           </AvatarFallback>
                         </Avatar>
                         {connection.id === activeConnection?.id && otherConnections.length > 1 && (
-                          <CircleCheck className="fill-mainBlue absolute -bottom-2 -right-2 size-4 rounded-full bg-white dark:bg-black" />
+                          <CircleCheck className={cn("absolute -bottom-2 -right-2 size-4 rounded-full bg-white dark:bg-black", connection.providerId === 'google' ? "fill-orange-500" : "fill-mainBlue")} />
                         )}
                       </div>
                     </div>

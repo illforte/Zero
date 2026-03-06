@@ -31,7 +31,30 @@ export const workspaceRouter = router({
         const contentArray = response.content as Array<{ type: string; text: string }>;
         const content = contentArray?.[0]?.type === 'text' ? contentArray[0].text : 'No data';
         
-        return [{ id: '1', name: content, type: 'MCP Document', modifiedAt: new Date().toISOString() }];
+        if (content.startsWith('No files found')) {
+          return [{ id: 'empty', name: 'No files found in your Google Drive.', type: 'Info', modifiedAt: new Date().toISOString() }];
+        }
+
+        const files = [];
+        const lines = content.split('\n');
+        for (const line of lines) {
+          // Parse format: - Name: "Filename" (ID: 123, Type: text/plain, Size: 62, Modified: 2026-03-06T15:19:10.136Z) Link: https://...
+          const match = line.match(/- Name: "(.*?)" \(ID: (.*?), Type: (.*?),.*?Modified: (.*?)\) Link: (.*)/);
+          if (match) {
+            files.push({
+              id: match[2],
+              name: `[${match[1]}](${match[5]})`,
+              type: match[3],
+              modifiedAt: match[4]
+            });
+          }
+        }
+        
+        if (files.length === 0 && content !== 'No data') {
+          return [{ id: '1', name: content, type: 'MCP Document', modifiedAt: new Date().toISOString() }];
+        }
+
+        return files;
       } catch (err) {
         console.error("MCP Drive fetch error:", err);
         const errMsg = err instanceof Error ? err.message : String(err);

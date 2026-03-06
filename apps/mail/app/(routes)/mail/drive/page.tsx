@@ -19,16 +19,12 @@ export default function DrivePage() {
         <ul className="space-y-2">
           {files?.map(file => (
             <li key={file.id} className="p-4 border rounded-md dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors cursor-pointer">
-              {file.id === 'error' ? (
-                <div 
-                  className="font-semibold" 
-                  dangerouslySetInnerHTML={{ 
-                    __html: file.name.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noreferrer" class="text-blue-500 hover:underline">$1</a>')
-                  }} 
-                />
-              ) : (
-                <p className="font-semibold">{file.name}</p>
-              )}
+              <div 
+                className="font-semibold" 
+                dangerouslySetInnerHTML={{ 
+                  __html: file.name.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noreferrer" class="text-blue-500 hover:underline">$1</a>')
+                }} 
+              />
               <p className="text-sm text-muted-foreground">{file.type} &bull; Modified: {new Date(file.modifiedAt).toLocaleDateString()}</p>
             </li>
           ))}

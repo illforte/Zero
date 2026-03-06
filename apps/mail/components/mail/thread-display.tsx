@@ -185,6 +185,7 @@ export function ThreadDisplay() {
   const [focusedIndex, setFocusedIndex] = useAtom(focusedIndexAtom);
   const trpc = useTRPC();
   const { mutateAsync: toggleImportant } = useMutation(trpc.mail.toggleImportant.mutationOptions());
+  const { mutateAsync: createTask, isPending: isCreatingTask } = useMutation(trpc.workspace.createTask.mutationOptions());
   const [, setIsComposeOpen] = useQueryState('isComposeOpen');
 
   // Get optimistic state for this thread
@@ -659,6 +660,21 @@ export function ThreadDisplay() {
     }
   }, [emailData, id]);
 
+  const handleCreateTask = useCallback(async () => {
+    if (!emailData?.latest) return;
+    toast.promise(
+      createTask({ 
+        title: emailData.latest.subject || 'Follow up on email',
+        notes: `Link to email: ${window.location.href}` 
+      }),
+      {
+        loading: 'Creating Google Task...',
+        success: (res) => res.success ? 'Task created successfully!' : `Failed: ${res.error}`,
+        error: 'Failed to create Google Task',
+      }
+    );
+  }, [emailData, createTask]);
+
   // Set initial star state based on email data
   useEffect(() => {
     if (emailData?.latest?.tags) {
@@ -796,6 +812,17 @@ export function ThreadDisplay() {
                 />
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCreateTask}
+                  disabled={isCreatingTask}
+                  className="inline-flex h-7 items-center justify-center gap-1 overflow-hidden rounded-lg border bg-white px-1.5 dark:border-none dark:bg-[#313131] hover:bg-gray-100 dark:hover:bg-[#404040] transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center justify-center gap-2.5 pl-0.5 pr-1">
+                    <div className="justify-start whitespace-nowrap text-sm leading-none text-black dark:text-white">
+                      Create Task
+                    </div>
+                  </div>
+                </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
