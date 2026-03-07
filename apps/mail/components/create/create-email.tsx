@@ -152,25 +152,53 @@ export function CreateEmail({
     }
   };
 
-  const undoEmailData = useMemo((): EmailData | null => {
-    if (isComposeOpen !== 'true') return null;
-    if (typeof window === 'undefined') return null;
-    
-    const storedData = localStorage.getItem('undoEmailData');
-    if (!storedData) return null;
-    
-    try {
-      const parsedData = JSON.parse(storedData);
-      
-      if (parsedData.attachments && Array.isArray(parsedData.attachments)) {
-        parsedData.attachments = deserializeFiles(parsedData.attachments);
+  const [undoEmailData, setUndoEmailData] = useState<EmailData | null>(null);
+  const [isUndoDataLoading, setIsUndoDataLoading] = useState(false);
+  const [draftFiles, setDraftFiles] = useState<File[]>([]);
+  const [isDraftFilesLoading, setIsDraftFilesLoading] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadUndoData = async () => {
+      if (isComposeOpen !== 'true') {
+        setUndoEmailData(null);
+        return;
       }
-      
-      return parsedData;
-    } catch (error) {
-      console.error('Failed to parse undo email data:', error);
-      return null;
-    }
+      if (typeof window === 'undefined') return;
+
+      const storedData = localStorage.getItem('undoEmailData');
+      if (!storedData) {
+        setUndoEmailData(null);
+        return;
+      }
+
+      try {
+        setIsUndoDataLoading(true);
+        const parsedData = JSON.parse(storedData);
+
+        if (parsedData.attachments && Array.isArray(parsedData.attachments)) {
+          parsedData.attachments = await deserializeFiles(parsedData.attachments);
+        }
+
+        if (isMounted) {
+          setUndoEmailData(parsedData);
+        }
+      } catch (error) {
+        console.error('Failed to parse undo email data:', error);
+        if (isMounted) {
+          setUndoEmailData(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsUndoDataLoading(false);
+        }
+      }
+    };
+
+    void loadUndoData();
+    return () => {
+      isMounted = false;
+    };
   }, [isComposeOpen]);
 
   // Cast draft to our extended type that includes CC and BCC
@@ -184,24 +212,52 @@ export function CreateEmail({
     }
   };
 
-  const base64ToFile = (base64: string, filename: string, mimeType: string): File | null => {
-    try {
-      const byteString = atob(base64);
-      const byteArray = new Uint8Array(byteString.length);
-      for (let i = 0; i < byteString.length; i++) {
-        byteArray[i] = byteString.charCodeAt(i);
+  useEffect(() => {
+    let isMounted = true;
+    const convertDraftFiles = async () => {
+      const attachments = (typedDraft?.attachments as Attachment[] | undefined) || [];
+      if (attachments.length === 0) {
+        setDraftFiles([]);
+        return;
       }
-      return new File([byteArray], filename, { type: mimeType });
+
+      try {
+        setIsDraftFilesLoading(true);
+        const converted = await Promise.all(
+          attachments.map((att) => base64ToFileAsync(att.body, att.filename, att.mimeType)),
+        );
+        if (isMounted) {
+          setDraftFiles(converted.filter((file): file is File => file !== null));
+        }
+      } catch (error) {
+        console.error('Failed to convert draft attachments:', error);
+      } finally {
+        if (isMounted) {
+          setIsDraftFilesLoading(false);
+        }
+      }
+    };
+
+    void convertDraftFiles();
+    return () => {
+      isMounted = false;
+    };
+  }, [typedDraft?.attachments]);
+
+  const base64ToFileAsync = async (
+    base64: string,
+    filename: string,
+    mimeType: string,
+  ): Promise<File | null> => {
+    try {
+      const response = await fetch(`data:${mimeType};base64,${base64}`);
+      const blob = await response.blob();
+      return new File([blob], filename, { type: mimeType });
     } catch (error) {
       console.error('Failed to convert base64 to file', error);
       return null;
     }
   };
-
-  // convert the attachments into File[]
-  const files: File[] = ((typedDraft?.attachments as Attachment[] | undefined) || [])
-    .map((att: Attachment) => base64ToFile(att.body, att.filename, att.mimeType))
-    .filter((file): file is File => file !== null);
 
   return (
     <>
@@ -217,11 +273,11 @@ export function CreateEmail({
               </button>
             </DialogClose>
           </div>
-          {isDraftLoading ? (
+          {isDraftLoading || isUndoDataLoading || isDraftFilesLoading ? (
             <div className="flex h-[600px] w-[750px] items-center justify-center rounded-2xl border">
               <div className="text-center">
                 <div className="mx-auto mb-4 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600"></div>
-                <p>Loading draft...</p>
+                <p>Loading...</p>
               </div>
             </div>
           ) : (
@@ -229,11 +285,7 @@ export function CreateEmail({
               key={typedDraft?.id || undoEmailData?.to?.join(',') || 'composer'}
               className="mb-12 rounded-2xl border"
               onSendEmail={handleSendEmail}
-              initialMessage={
-                undoEmailData?.message || 
-                typedDraft?.content || 
-                initialBody
-              }
+              initialMessage={undoEmailData?.message || typedDraft?.content || initialBody}
               initialTo={
                 undoEmailData?.to ||
                 typedDraft?.to?.map((e: string) => e.replace(/[<>]/g, '')) ||
@@ -256,12 +308,8 @@ export function CreateEmail({
                 setDraftId(null);
                 clearUndoData();
               }}
-              initialAttachments={undoEmailData?.attachments || files}
-              initialSubject={
-                undoEmailData?.subject || 
-                typedDraft?.subject || 
-                initialSubject
-              }
+              initialAttachments={undoEmailData?.attachments || draftFiles}
+              initialSubject={undoEmailData?.subject || typedDraft?.subject || initialSubject}
               autofocus={false}
               settingsLoading={settingsLoading}
             />

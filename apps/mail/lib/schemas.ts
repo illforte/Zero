@@ -33,9 +33,9 @@ export const serializeFiles = async (files: File[]) => {
 
 export const deserializeFiles = async (serializedFiles: z.infer<typeof serializedFileSchema>[]) => {
   return await Promise.all(
-    serializedFiles.map((data) => {
-      const file = Buffer.from(data.base64, 'base64');
-      const blob = new Blob([file], { type: data.type });
+    serializedFiles.map(async (data) => {
+      const response = await fetch(`data:${data.type};base64,${data.base64}`);
+      const blob = await response.blob();
       const newFile = new File([blob], data.name, {
         type: data.type,
         lastModified: data.lastModified,
