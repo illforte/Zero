@@ -444,8 +444,7 @@ export class ZeroAgent extends AIChatAgent<typeof env> {
       try {
         data = JSON.parse(message) as IncomingMessage;
       } catch (error) {
-        // silently ignore invalid messages for now
-        // TODO: log errors with log levels
+        console.error('Failed to parse incoming message:', error, { message });
         return;
       }
       switch (data.type) {
@@ -454,7 +453,13 @@ export class ZeroAgent extends AIChatAgent<typeof env> {
 
           const { body } = data.init;
 
-          const { messages } = JSON.parse(body as string);
+          let messages: ChatMessage[];
+          try {
+            messages = JSON.parse(body as string).messages;
+          } catch (error) {
+            console.error('Failed to parse UseChatRequest body:', error, { body });
+            break;
+          }
           this.broadcastChatMessage(
             {
               type: OutgoingMessageType.ChatMessages,
