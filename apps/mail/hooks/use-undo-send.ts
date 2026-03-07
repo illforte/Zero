@@ -45,15 +45,14 @@ const serializeFiles = async (files: File[]): Promise<SerializedFile[]> => {
   );
 };
 
-export const deserializeFiles = (serializedFiles: SerializedFile[]): File[] => {
-  return serializedFiles.map(({ data, name, type, lastModified }) => {
-    const byteString = atob(data);
-    const byteArray = new Uint8Array(byteString.length);
-    for (let i = 0; i < byteString.length; i++) {
-      byteArray[i] = byteString.charCodeAt(i);
-    }
-    return new File([byteArray], name, { type, lastModified });
-  });
+export const deserializeFiles = async (serializedFiles: SerializedFile[]): Promise<File[]> => {
+  return Promise.all(
+    serializedFiles.map(async ({ data, name, type, lastModified }) => {
+      const response = await fetch(`data:${type};base64,${data}`);
+      const blob = await response.blob();
+      return new File([blob], name, { type, lastModified });
+    })
+  );
 };
 
 export const useUndoSend = () => {
