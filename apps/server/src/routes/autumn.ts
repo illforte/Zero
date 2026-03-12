@@ -4,7 +4,7 @@ import { env } from '../env';
 import { Hono } from 'hono';
 
 const sanitizeCustomerBody = (body: any) => {
-  let bodyCopy = { ...body };
+  const bodyCopy = { ...body };
   delete bodyCopy.id;
   delete bodyCopy.name;
   delete bodyCopy.email;
