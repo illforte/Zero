@@ -128,6 +128,7 @@ export class ImapMailManager implements MailManager {
       unread: true,
       body: email.html || email.text || '',
       processedHtml: email.html || email.text || '',
+      decodedBody: email.html ? email.html : (email.text ? email.text.replace(/\n/g, '<br>') : ''),
       blobUrl: '',
     };
 
