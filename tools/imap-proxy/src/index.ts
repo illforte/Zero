@@ -169,6 +169,7 @@ app.post('/api/imap/get', async (c) => {
 
     const email = await new Promise<any>((resolve, reject) => {
       let found = false;
+      let emailFlags: string[] = [];
 
       imap.once('ready', () => {
         imap.openBox(folder, false, (err) => {
@@ -178,6 +179,9 @@ app.post('/api/imap/get', async (c) => {
 
           fetch.on('message', (msg) => {
             found = true;
+            msg.once('attributes', (attrs) => {
+               emailFlags = attrs.flags || [];
+            });
             msg.on('body', (stream) => {
               simpleParser(stream, (err, parsed) => {
                 if (err) return reject(err);
@@ -195,6 +199,7 @@ app.post('/api/imap/get', async (c) => {
                   references: parsed.references,
                   html: parsed.html,
                   text: parsed.text,
+                  flags: emailFlags, // passed down flags
                   attachments: parsed.attachments?.map(att => ({
                     filename: att.filename,
                     contentType: att.contentType,
@@ -246,7 +251,7 @@ app.post('/api/imap/mark-read', async (c) => {
         imap.openBox(folder, false, (err) => {
           if (err) return reject(err);
 
-          const flag = read ? '\\Seen' : '';
+          const flag = '\\Seen'; // always action on \Seen
           const action = read ? 'addFlags' : 'delFlags';
 
           imap[action](uids, flag, (err) => {

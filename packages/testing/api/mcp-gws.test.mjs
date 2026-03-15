@@ -56,10 +56,10 @@ describe('Phase 2b: Google Workspace MCP (streamable-http)', () => {
     console.log(`  Found ${tools.length} tools`);
     assert.ok(tools.length >= 100, `Expected >= 100 tools, got ${tools.length}`);
 
-    const toolNames = tools.map((t) => t.name);
+    const toolNames = new Set(tools.map((t) => t.name));
     const keyTools = ['search_drive_files', 'create_doc', 'get_events'];
-    for (const name of keyTools) {
-      assert.ok(toolNames.includes(name), `Missing key tool: ${name}`);
+    for (const kt of keyTools) {
+      assert.ok(toolNames.has(kt), `Missing key tool: ${kt}`);
     }
   });
 

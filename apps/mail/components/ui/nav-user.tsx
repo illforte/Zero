@@ -129,7 +129,7 @@ export function NavUser() {
     queryClient.clear();
     await idbClear();
     toast.success('Cache cleared successfully');
-  }, []);
+  }, [queryClient]);
 
   const handleCopyConnectionId = useCallback(async () => {
     await navigator.clipboard.writeText(activeConnection?.id || '');
@@ -543,11 +543,11 @@ export function NavUser() {
                 </Tooltip>
               ))}
 
-              {otherConnections.length > 3 && (
+              {otherConnections.length > 2 && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className="hover:bg-muted flex h-7 w-7 cursor-pointer items-center justify-center rounded-[5px]">
-                      <span className="text-[10px]">+{otherConnections.length - 3}</span>
+                      <span className="text-[10px]">+{otherConnections.length - 2}</span>
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
@@ -556,7 +556,7 @@ export function NavUser() {
                     side={'bottom'}
                     sideOffset={8}
                   >
-                    {otherConnections.slice(3).map((connection) => (
+                    {otherConnections.slice(2).map((connection) => (
                       <DropdownMenuItem
                         key={connection.id}
                         onClick={handleAccountSwitch(connection.id)}
