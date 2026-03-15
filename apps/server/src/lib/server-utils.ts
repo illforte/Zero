@@ -23,7 +23,7 @@ export const getZeroDB = async (userId: string) => {
 };
 
 class MockExecutionContext implements ExecutionContext {
-  async waitUntil(promise: Promise<any>) {
+  async waitUntil(promise: Promise<unknown>) {
     try {
       await promise;
     } catch (error) {
@@ -31,7 +31,7 @@ class MockExecutionContext implements ExecutionContext {
     }
   }
   passThroughOnException(): void { }
-  props: any;
+  props: unknown;
 }
 
 const getRegistryClient = async (connectionId: string) => {
@@ -264,7 +264,7 @@ const getThreadEffect = (connectionId: string, threadId: string) => {
     (shard, shardId) =>
       Effect.gen(function* () {
         const thread = yield* Effect.tryPromise({
-          try: async () => shard.stub.getThread(threadId, true),
+          try: async () => shard.stub.getThreadFromDB(threadId, true),
           catch: (error) =>
             new Error(`Failed to setup auth or get thread from shard ${shardId}: ${error}`),
         });
@@ -600,7 +600,7 @@ export const verifyToken = async (token: string) => {
     throw new Error(`Failed to verify token: ${await response.text()}`);
   }
 
-  const data = (await response.json()) as any;
+  const data = (await response.json()) as unknown;
   return !!data;
 };
 
