@@ -110,8 +110,10 @@ export class ImapMailManager implements MailManager {
         from: email.from || '',
         to: email.to || '',
         subject: email.subject || '',
-        date: email.date,
         body: email.html || email.text || '',
+        processedHtml: email.html || email.text || '',
+        decodedBody: email.html ? email.html : (email.text ? email.text.replace(/\n/g, '<br>') : ''),
+        blobUrl: '',
         internalDate: email.date,
         labelIds: [],
         unread: true, // TODO: Get from flags
