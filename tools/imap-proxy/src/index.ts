@@ -168,6 +168,8 @@ app.post('/api/imap/get', async (c) => {
     });
 
     const email = await new Promise<any>((resolve, reject) => {
+      let found = false;
+
       imap.once('ready', () => {
         imap.openBox(folder, false, (err) => {
           if (err) return reject(err);
@@ -175,6 +177,7 @@ app.post('/api/imap/get', async (c) => {
           const fetch = imap.fetch([uid], { bodies: '' });
 
           fetch.on('message', (msg) => {
+            found = true;
             msg.on('body', (stream) => {
               simpleParser(stream, (err, parsed) => {
                 if (err) return reject(err);
@@ -203,6 +206,12 @@ app.post('/api/imap/get', async (c) => {
           });
 
           fetch.once('error', reject);
+          fetch.once('end', () => {
+             if (!found) {
+                imap.end();
+                reject(new Error('Email not found'));
+             }
+          });
         });
       });
 
