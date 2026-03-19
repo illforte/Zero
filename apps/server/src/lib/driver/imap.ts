@@ -110,7 +110,7 @@ export class ImapMailManager implements MailManager {
         from: email.from || '',
         to: email.to || '',
         subject: email.subject || '',
-        body: email.html || email.text || '',
+        body: email.text || '',
         processedHtml: email.html || email.text || '',
         decodedBody: email.html ? email.html : (email.text ? email.text.replace(/\n/g, '<br>') : ''),
         blobUrl: '',
