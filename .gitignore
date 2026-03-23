@@ -60,3 +60,6 @@ worker-configuration.d.ts
 tsx-0/
 
 tools.json
+# Private mail-zero seeds
+apps/server/src/db/seeds/00-n1njanode-connections.sql
+apps/server/src/db/seeds/01-lair404-connections.sql
