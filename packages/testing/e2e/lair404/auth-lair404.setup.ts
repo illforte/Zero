@@ -22,7 +22,7 @@ setup('inject lair404 authentication session', async ({ page }) => {
 
   const rawToken = process.env.PLAYWRIGHT_SESSION_TOKEN;
   const authSecret = process.env.BETTER_AUTH_SECRET;
-  const userEmail = process.env.EMAIL || 'fscheugenpflug4@googlemail.com';
+  const userEmail = process.env.EMAIL || 'weretradeit@gmail.com';
   const serverUrl = process.env.SERVER_URL || 'http://127.0.0.1:3051';
   const frontendUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3050';
 

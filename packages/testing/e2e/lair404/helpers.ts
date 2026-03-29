@@ -46,7 +46,7 @@ async function getSessionData(): Promise<Record<string, unknown> | null> {
   // Fetch directly from the server using Node.js fetch (bypasses CORS)
   const signedToken = getSignedSessionCookie();
   const serverUrl = process.env.SERVER_URL || 'http://127.0.0.1:3051';
-  const userEmail = process.env.EMAIL || 'fscheugenpflug4@googlemail.com';
+  const userEmail = process.env.EMAIL || 'weretradeit@gmail.com';
 
   if (!signedToken) {
     console.log('[getSessionData] No signed token available');
@@ -102,7 +102,7 @@ async function getSessionData(): Promise<Record<string, unknown> | null> {
  * Must be called at the start of each test (before any navigation).
  */
 export async function bypassCfAccess(page: Page): Promise<void> {
-  const userEmail = process.env.EMAIL || 'fscheugenpflug4@googlemail.com';
+  const userEmail = process.env.EMAIL || 'weretradeit@gmail.com';
   const serverUrl = process.env.SERVER_URL || 'http://127.0.0.1:3051';
   const frontendUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3050';
   const signedToken = getSignedSessionCookie();
