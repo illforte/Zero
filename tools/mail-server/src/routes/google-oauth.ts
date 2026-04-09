@@ -14,7 +14,7 @@ import { getNodeZeroDB } from '../db/node-zero-db.js';
 import { getAuth } from '../auth.js';
 import type { HonoContext } from '../types.js';
 import { eq, and } from 'drizzle-orm';
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { env } from '../env.js';
 
 const SCOPES = [
@@ -24,8 +24,12 @@ const SCOPES = [
   'https://www.googleapis.com/auth/userinfo.email',
 ];
 
-function getClient() {
-  const redirectUri = `${env.APP_URL}/api/gmail/callback`;
+function getClient(c: Context<HonoContext>) {
+  const url = new URL(c.req.url);
+  // Ensure we use the proper scheme (handles proxies)
+  const proto = c.req.header('x-forwarded-proto') || url.protocol.replace(':', '');
+  const baseUrl = `${proto}://${c.req.header('host') || url.host}`;
+  const redirectUri = `${baseUrl}/api/gmail/callback`;
   return new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, redirectUri);
 }
 
@@ -46,7 +50,7 @@ googleOAuthRouter.get('/api/gmail/auth', async (c) => {
 
   // Encode userId in state so callback can create the connection under the right user
   const state = Buffer.from(JSON.stringify({ userId: session.user.id })).toString('base64url');
-  const url = getClient().generateAuthUrl({
+  const url = getClient(c).generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent', // force refresh_token even if already granted
     scope: SCOPES,
@@ -68,7 +72,7 @@ googleOAuthRouter.get('/api/gmail/callback', async (c) => {
   }
 
   try {
-    const client = getClient();
+    const client = getClient(c);
     const { tokens } = await client.getToken(code);
 
     if (!tokens.refresh_token) {

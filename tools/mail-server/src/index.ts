@@ -47,10 +47,63 @@ app.route('/', cfAccessAuthRouter);
 // Google OAuth re-auth (must be before better-auth /api/auth/** catch-all)
 app.route('/', googleOAuthRouter);
 
+// Public endpoint: list available auth providers for the login page.
+// The frontend fetches this to decide which SSO buttons to show.
+app.get('/api/public/providers', (c) => {
+  const allProviders: Array<{
+    id: string;
+    name: string;
+    enabled: boolean;
+    required: boolean;
+    isCustom: boolean;
+    customRedirectPath?: string;
+    envVarStatus: Array<{ name: string; set: boolean; source: string }>;
+  }> = [];
+
+  // Google
+  const googleEnabled = !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+  allProviders.push({
+    id: 'google',
+    name: 'Google',
+    enabled: googleEnabled,
+    required: true,
+    isCustom: false,
+    envVarStatus: [
+      { name: 'GOOGLE_CLIENT_ID', set: !!env.GOOGLE_CLIENT_ID, source: 'Google Cloud Console' },
+      { name: 'GOOGLE_CLIENT_SECRET', set: !!env.GOOGLE_CLIENT_SECRET, source: 'Google Cloud Console' },
+    ],
+  });
+
+  // CF Access custom provider (always available when CF_ACCESS_AUD is set)
+  if (env.CF_ACCESS_AUD) {
+    allProviders.push({
+      id: 'cloudflare',
+      name: 'Cloudflare Access',
+      enabled: true,
+      required: false,
+      isCustom: true,
+      customRedirectPath: '/cf-access/callback',
+      envVarStatus: [],
+    });
+  }
+
+  return c.json({ allProviders });
+});
+
 // Better Auth session endpoints
 const auth = getAuth();
 app.on(['GET', 'POST'], '/api/auth/**', (c) => {
   return auth.handler(c.req.raw);
+});
+
+// Mock Autumn billing endpoints to prevent useBilling() from force-logging out users on 404
+app.all('/api/autumn/**', (c) => {
+  return c.json({
+    customer: {
+      id: 'mock',
+      features: {},
+    }
+  });
 });
 
 // Session injection middleware for tRPC (handles both /trpc/* and /api/trpc/* paths)
@@ -83,8 +136,8 @@ const trpcConfig = {
   },
 };
 
-app.use('/trpc/*', trpcServer(trpcConfig));
-app.use('/api/trpc/*', trpcServer(trpcConfig));
+app.use('/trpc/*', trpcServer({ ...trpcConfig, endpoint: '/trpc' }));
+app.use('/api/trpc/*', trpcServer({ ...trpcConfig, endpoint: '/api/trpc' }));
 
 const port = parseInt(env.PORT);
 console.log(`🚀 mail-zero-server-node starting on port ${port}`);
