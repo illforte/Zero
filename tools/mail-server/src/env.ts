@@ -25,7 +25,11 @@ export const env = {
   CORS_ORIGINS: process.env.CORS_ORIGINS || 'https://mail.lair404.xyz',
 
   // Cookie
-  COOKIE_DOMAIN: process.env.COOKIE_DOMAIN || '.lair404.xyz',
+  COOKIE_DOMAIN: process.env.COOKIE_DOMAIN || '',
+
+  // Trusted origins (beyond CORS_ORIGINS) for BetterAuth session validation
+  // Supports Tailscale, additional domains, etc.
+  BETTER_AUTH_TRUSTED_ORIGINS: process.env.BETTER_AUTH_TRUSTED_ORIGINS || '',
 
   // Google OAuth (for Gmail connections)
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '',

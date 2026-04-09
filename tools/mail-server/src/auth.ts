@@ -34,7 +34,6 @@ function buildSocialProviders(): Record<string, unknown> {
       // Request offline access + Gmail scopes so the OAuth token can
       // also be used to connect the mailbox after login.
       accessType: 'offline',
-      prompt: 'consent',
       scope: [
         'https://mail.google.com/',
         'https://www.googleapis.com/auth/gmail.modify',

@@ -45,6 +45,10 @@ export const makeQueryClient = (connectionId: string | null) =>
               },
             },
           });
+        } else if (err.message.includes('No mail connection found for user')) {
+          if (!window.location.href.includes('/settings/connections')) {
+            window.location.href = '/settings/connections';
+          }
         } else console.error(err.message || 'Something went wrong');
       },
     }),
