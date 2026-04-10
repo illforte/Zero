@@ -13,7 +13,7 @@ GitHub Secret Scanning blocked push due to detecting LAIR404XYZ_GITHUB_PAT in gi
 ### Option 1: Use GitHub's Allow Feature (Recommended)
 Visit the allow URL provided by GitHub:
 ```
-https://github.com/illforte/Zero/security/secret-scanning/unblock-secret/39lCxR18Xc3dTor0qWOSZUXA65i
+https://github.com/weretradeIT/mail-zero-fork/security/secret-scanning/unblock-secret/39lCxR18Xc3dTor0qWOSZUXA65i
 ```
 
 Then push:

@@ -2,7 +2,7 @@
 
 Fork of [Mail-0/Zero](https://github.com/Mail-0/Zero) — self-hosted AI email client, heavily customized for lair404 and n1njanode deployment.
 
-- **Remote:** `illforte/Zero` (`git@github.com:illforte/Zero.git`)
+- **Remote:** `weretradeIT/mail-zero-fork` (`git@github.com:weretradeIT/mail-zero-fork.git`)
 - **Deployed:** lair404 (port 3050) and n1njanode (port 3050)
 - **MCP server:** port 5008 (SSE transport, requires API key)
 
@@ -151,7 +151,7 @@ These return empty responses on self-hosted: categories, Intercom, BIMI, brain f
 
 ## Git
 
-- Remote: `illforte/Zero`
+- Remote: `weretradeIT/mail-zero-fork`
 - NEVER `git push --force` to main
 - ALWAYS stage specific files, NEVER `git add .`
 - Commit messages: HEREDOC format
