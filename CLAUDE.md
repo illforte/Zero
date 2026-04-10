@@ -6,7 +6,7 @@ Fork of [Mail-0/Zero](https://github.com/Mail-0/Zero) — self-hosted AI email c
 - **Deployed:** lair404 (port 3050) and n1njanode (port 3050)
 - **MCP server:** port 5008 (SSE transport, requires API key)
 
-> **Key docs:** `LAIR404-NOTES.md` — 10 weretrade customizations in detail. `MCP.md` — MCP server tool list.
+> **Key docs:** `LAIR404-NOTES.md` — 12 weretrade customizations in detail. `MCP.md` — MCP server tool list.
 
 ---
 
@@ -73,6 +73,8 @@ See `LAIR404-NOTES.md` for full implementation details.
 8. **CF Access redirect** — Login redirects preserved through CF Access SSO
 9. **Per-connection IMAP credentials** — Stored in `accessToken`/`refreshToken` DB fields
 10. **SMTP TLS** — Custom TLS config for local mail server
+11. **Google Workspace MCP UI** — Nav menu drops down when Google linked
+12. **OAuth Seamless Login & Loop Fix** — Mocked autumn endpoint and removed prompt consent
 
 ---
 
@@ -137,7 +139,7 @@ See `MCP.md` for complete tool lists.
 ## Upstream Sync
 
 - **Upstream:** `github.com/Mail-0/Zero`
-- **Strategy:** Merge upstream, then verify all 10 customizations still intact (check `LAIR404-NOTES.md`)
+- **Strategy:** Merge upstream, then verify all 12 customizations still intact (check `LAIR404-NOTES.md`)
 
 ---
 
@@ -156,5 +158,5 @@ These return empty responses on self-hosted: categories, Intercom, BIMI, brain f
 
 ---
 
-**Version:** 1.0.0
-**Updated:** 2026-02-26
+**Version:** 1.0.1
+**Updated:** 2026-04-10

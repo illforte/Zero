@@ -328,3 +328,12 @@ All images built with `docker buildx build --platform linux/amd64` (lair404 is A
 Added conditional rendering in the `NavUser` dropdown component (`apps/mail/components/ui/nav-user.tsx`) to display direct links to Google Workspace services (Gmail, Drive, Calendar, Docs, Sheets, Slides) exclusively when a Google Account is active.
 
 This enhances the user experience by bringing all Google productivity tools into a unified dropdown. Testing via E2E confirmed the Google Workspace MCP connects properly, searches files, reads calendar events, and operates successfully alongside the LiteLLM proxy which acts as the core router.
+
+### 12. Google OAuth Redirection & Connection Loops
+Fixed a critical bug where logging in via Better Auth Google OAuth caused a flashing redirect loop on the frontend.
+**Root Causes & Fixes:**
+1. **Autumn Billing Mock (`tools/mail-server/src/index.ts`)**: The frontend `useBilling` hook queried `/api/autumn/customers`. Since it wasn't implemented, it returned a `404 Not Found`, causing `useBilling` to aggressively log the user out. Fix: Mocked the endpoint to return a 200 OK.
+2. **Missing Database Hooks (`tools/mail-server/src/auth.ts`)**: The newly created `mail-server` lacked the Better Auth `databaseHooks.account.create.after` hook, preventing `mail0_connection` records from being stored natively. Fix: Ported and modernized the hook from `apps/server`.
+3. **Seamless Login**: Removed `prompt: 'consent'` from the Better Auth Google provider config so users are not forced into the re-consent screen on every single login.
+
+**Important Note:** The Google People API *must* be enabled in Google Cloud Console for the app to successfully fetch the user's profile image during the `account.create.after` database hook.

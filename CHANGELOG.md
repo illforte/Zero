@@ -1,5 +1,11 @@
 # Mail-Zero Changelog
 
+## [1.0.2] - 2026-04-10
+### Fixed
+- **Authentication Loop:** Resolved the infinite layout redirect loop. Added a mock endpoint for `/api/autumn/customers` in `tools/mail-server` because its absence caused the frontend `useBilling` hook to aggressively purge session tokens.
+- **Connection Missing:** Restored the `account.create.after` Better Auth database hook into the newly modularized `mail-server` to automatically persist the `mail0_connection` record and bypass the "Connection required" dead-end.
+- **Seamless Logins:** Removed `prompt: 'consent'` from the Better Auth Google provider config. The OAuth flow now issues rapid one-click logins correctly without mandating users to manually re-approve the scopes list on every visit.
+
 ## [1.0.1] - 2026-03-06
 ### Added
 - **Google Workspace Integration (Calendar & Tasks):** Parsed raw text outputs from `google-workspace-mcp` into rich JSON so the frontend correctly renders upcoming events with dates/links and allows for one-click Task creation directly from email threads.
